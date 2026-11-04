@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roof Inspection Report</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/report.css">
+</head>
+<body>
+<header class="topbar"><div class="logo" id="brandTop">Roof Inspection Report</div></header>
+<div class="toolbar"><div class="tb-row">
+  <span class="tb-note" id="who"></span>
+  <button class="btn primary" id="pdfBtn" type="button">Download PDF</button>
+</div></div>
+<div class="wrap" id="msg" hidden></div>
+<div class="sheetWrap"><div class="sheet"><div class="report readonly" id="report"></div></div></div>
+<p class="fine" style="padding:0 16px 32px">Made with <a href="./">Roof Inspector</a> — turn a roof video into a branded inspection report, free.</p>
+<script type="module">
+import { SHARE_BASE, FONTS } from "./js/config.js";
+import { render, fitPages, brandVars } from "./js/report.js";
+const $ = (id) => document.getElementById(id);
+const id = new URLSearchParams(location.search).get("id") || "";
+const rep = $("report");
+function scale() { const s = document.querySelector(".sheet"); s.style.width = "816px"; s.style.zoom = Math.min(1, (document.documentElement.clientWidth - 16) / 816); }
+async function main() {
+  if (!/^[a-z0-9]{8,20}$/.test(id)) throw new Error("This link isn't valid.");
+  const r = await fetch(SHARE_BASE + id + ".json");
+  if (!r.ok) throw new Error("This report couldn't be found. It may have been removed.");
+  const m = await r.json();
+  const f = FONTS[m.brand.fontIndex];
+  if (f?.google) document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${f.google}&display=swap">`);
+  document.title = `Roof Report - ${m.job.address}`;
+  $("brandTop").textContent = m.brand.company || "Roof Inspection Report";
+  $("who").textContent = m.job.address;
+  rep.setAttribute("style", brandVars(m.brand));
+  if (/^#[0-9a-f]{6}$/i.test(m.brand.color || "")) { document.documentElement.style.setProperty("--g", m.brand.color); document.documentElement.style.setProperty("--g2", m.brand.color); }
+  rep.innerHTML = render(m, { editable: false });
+  scale();
+  const fit = () => fitPages(rep); fit(); document.fonts?.ready.then(fit);
+  rep.querySelectorAll("img").forEach((im) => im.complete || im.addEventListener("load", fit, { once: true }));
+}
+main().catch((e) => { $("msg").hidden = false; $("msg").innerHTML = `<div class="card"><b>${e.message}</b></div>`; });
+window.addEventListener("resize", scale);
+$("pdfBtn").onclick = () => { fitPages(rep); window.print(); };
+</script>
+</body>
+</html>

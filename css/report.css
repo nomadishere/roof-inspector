@@ -1,0 +1,112 @@
+/* ===== Report pages — Lucky Line house style, re-skinned per user =====
+   --brand / --tint / --cover-bg / --rfont are set from the user's choices. */
+.report{
+  --brand:#16603A; --tint:#EAF2EC; --cover-bg:#F3F5F2; --rfont:Arial,Helvetica,sans-serif;
+  --ink:#2A2E2C; --muted:#5F6763; --rule:#D9DEDB;
+  --critical:#8E1B1B; --high:#C0392B; --medium:#B7791F; --low:#3D6B8C; --easy:#16603A;
+  font-family:var(--rfont); color:var(--ink); font-size:10pt; line-height:1.45;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.report *{box-sizing:border-box}
+.report .page{width:8.5in;height:11in;position:relative;overflow:hidden;background:#fff;margin:0 auto 24px;box-shadow:0 2px 14px rgba(0,0,0,.14)}
+.report .fit{position:absolute;inset:0}
+
+/* ---------- Cover ---------- */
+.report .cover{background:var(--cover-bg)}
+.report .cover .side{position:absolute;left:0;top:0;bottom:0;width:2.48in;background:var(--brand)}
+.report .cover .logo-card{position:absolute;left:.3in;top:.5in;width:1.88in;height:1.88in;background:#fff;border-radius:.12in;padding:.12in;display:flex;align-items:center;justify-content:center}
+.report .cover .logo-card img{max-width:100%;max-height:100%;object-fit:contain}
+.report .cover .logo-card .noLogo{color:var(--brand);font-weight:bold;font-size:15pt;text-align:center;line-height:1.15}
+.report .cover .side-contact{position:absolute;left:.3in;right:.2in;bottom:.38in;color:#fff;font-size:9pt;line-height:1.5;word-break:break-word}
+.report .cover .hero{position:absolute;left:2.88in;top:.5in;right:.4in;height:8.3in;background:#fff;border-radius:.14in;padding:.14in}
+.report .cover .hero img{width:100%;height:100%;object-fit:cover;display:block;border-radius:.04in}
+.report .cover .title-card{position:absolute;left:.96in;top:6.75in;width:4.95in;background:#fff;border-radius:.16in;padding:.3in .36in .26in;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.report .cover h1{color:var(--brand);font-size:24pt;line-height:1.12;margin:0 0 .18in}
+.report .cover .subtitle{font-size:14pt;font-weight:bold;margin:0 0 .14in}
+.report .cover .meta{color:var(--muted);font-size:10pt;line-height:1.75}
+.report .cover .tagline{color:var(--brand);font-style:italic;font-size:9.5pt;margin-top:.2in}
+
+/* ---------- Interior ---------- */
+.report .inner .fit{padding:.5in .6in .85in}
+.report .hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid var(--brand);padding-bottom:.08in;margin-bottom:.22in;gap:.2in}
+.report .hdr .brandname{display:flex;align-items:center;gap:.1in;color:var(--brand);font-weight:bold;font-size:11.5pt;letter-spacing:.2px;text-transform:uppercase}
+.report .hdr .section{color:var(--muted);font-size:9.5pt;text-align:right}
+.report .ftr{position:absolute;left:.6in;right:.6in;bottom:.42in;border-top:1px solid var(--rule);padding-top:.08in;display:flex;justify-content:space-between;gap:.2in;color:var(--muted);font-size:8.5pt}
+.report h2.title{font-size:22pt;margin:0 0 .12in;color:var(--ink);line-height:1.15}
+.report h3{color:var(--brand);font-size:14pt;margin:.18in 0 .08in}
+.report h4{color:var(--brand);font-size:12pt;margin:0 0 .03in}
+.report .sub{color:var(--muted);font-size:9pt;margin:0 0 .08in}
+.report p{margin:0 0 .1in}
+.report ul,.report ol{margin:.03in 0 .08in;padding-left:.22in}
+.report li{margin:0 0 .02in}
+
+/* Contents */
+.report .toc{margin-top:.1in}
+.report .toc .row{display:grid;grid-template-columns:.5in 1fr .5in;gap:.12in;padding:.09in 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.report .toc .n{color:var(--brand);font-weight:bold;font-size:13pt}
+.report .toc .t b{display:block}
+.report .toc .t span{color:var(--muted);font-size:9pt}
+.report .toc .p{text-align:right;color:var(--muted)}
+
+/* Photos + captions */
+.report .finding{margin:0 0 .2in}
+.report .finding .ph{width:100%;height:3.35in;background:#f2f2f2;display:block;object-fit:cover}
+.report .caption{background:var(--tint);padding:.09in .13in;font-size:9pt}
+.report .caption .lbl{color:var(--brand);font-weight:bold;margin-right:.06in}
+.report .caption .meta{color:var(--muted);margin:.02in 0 .04in}
+.report .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.18in}
+.report .grid2 .ph{height:2.3in;width:100%;object-fit:cover;display:block}
+
+/* Repair item */
+.report .item{display:grid;grid-template-columns:1.65in 1fr;gap:.26in;padding:.14in 0;border-bottom:1px solid var(--rule)}
+.report .item .ph{width:1.65in;height:1.4in;object-fit:cover;display:block}
+.report .item .mini{background:var(--tint);font-size:8pt;padding:.04in .07in}
+.report .item h5{margin:.06in 0 .02in;font-size:9.5pt}
+
+/* Labels */
+.report .critical{color:var(--critical);font-weight:bold}
+.report .high{color:var(--high);font-weight:bold}
+.report .medium{color:var(--medium);font-weight:bold}
+.report .low{color:var(--low);font-weight:bold}
+.report .easy{color:var(--easy);font-weight:bold}
+.report .callpro{color:var(--high);font-weight:bold}
+
+/* Tables */
+.report table{width:100%;border-collapse:collapse;font-size:9pt;margin:.08in 0 .16in}
+.report th{background:var(--brand);color:#fff;text-align:left;padding:.06in .09in;font-weight:bold}
+.report td{padding:.06in .09in;border-bottom:1px solid var(--rule);vertical-align:top}
+.report tr:nth-child(even) td{background:#F7F8F7}
+.report td.num,.report th.num{text-align:right;white-space:nowrap}
+.report tr.subt td{background:#fff;font-weight:bold}
+.report tr.total td{background:var(--brand);color:#fff;font-weight:bold;font-size:10.5pt}
+.report .tag{display:inline-block;font-size:7.5pt;font-weight:bold;color:var(--brand);background:var(--tint);padding:0 .05in;border-radius:2px}
+
+/* Boxes */
+.report .cols{display:grid;grid-template-columns:1fr 1fr;gap:.22in}
+.report .box{background:var(--tint);padding:.13in .16in;font-size:9pt}
+.report .box h5{color:var(--brand);margin:0 0 .06in;font-size:10pt}
+.report .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:.1in;margin:.1in 0 .14in}
+.report .facts div{background:var(--tint);padding:.08in .1in;font-size:9pt}
+.report .facts b{display:block;color:var(--brand);font-size:8pt;text-transform:uppercase;letter-spacing:.3px}
+
+/* Signature */
+.report .sig{display:grid;grid-template-columns:2fr 1fr;gap:.35in;margin-top:.4in}
+.report .sig div{border-top:1px solid var(--ink);padding-top:.05in;font-size:9pt;color:var(--muted)}
+.report .selbox{display:inline-block;width:.16in;height:.16in;border:1.5px solid var(--ink);vertical-align:middle}
+.report .note-sign{margin-top:.2in}
+
+/* Editing (screen only) */
+.report [contenteditable="true"]{outline:1px dashed transparent;border-radius:2px;transition:outline-color .15s}
+.report [contenteditable="true"]:hover{outline-color:#9bb}
+.report [contenteditable="true"]:focus{outline:2px solid #2b8cff;background:#fffbe6}
+.report .rm{position:absolute;right:.1in;top:.1in;z-index:2;background:#fff;border:1px solid #c33;color:#c33;border-radius:999px;font:600 11px/1 system-ui,sans-serif;padding:6px 10px;cursor:pointer}
+.report .finding,.report .item{position:relative}
+.report.readonly .rm{display:none}
+
+@media print{
+  @page{size:8.5in 11in;margin:0}
+  .report .page{margin:0;box-shadow:none;page-break-after:always;break-after:page}
+  .report .page:last-child{page-break-after:auto;break-after:auto}
+  .report .rm{display:none!important}
+  .report [contenteditable]{outline:none!important;background:none!important}
+}

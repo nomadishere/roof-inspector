@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roof Inspector — branded roof inspection reports from a video</title>
+<meta name="description" content="Upload a roof video and your logo. Get a professional, branded roof inspection report with circled photos, a DIY repair plan and an estimate.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 17 L16 6 L29 17' fill='none' stroke='%2316603A' stroke-width='3'/%3E%3Cline x1='9' y1='25' x2='23' y2='25' stroke='%2316603A' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/report.css">
+</head>
+<body>
+<header class="topbar" id="topbar">
+  <div class="logo"><svg width="28" height="16" viewBox="0 0 30 16" aria-hidden="true"><path d="M1 9 L15 2 L29 9" fill="none" stroke="currentColor" stroke-width="2.4"/><line x1="7" y1="14" x2="23" y2="14" stroke="currentColor" stroke-width="2.4"/></svg>Roof Inspector</div>
+</header>
+
+<!-- STEP 1: form -->
+<main id="step-form" class="wrap">
+  <section class="hero-copy">
+    <h1>Turn a roof video into a professional inspection report.</h1>
+    <p>Upload your video and logo. Get a branded report with circled problem photos, a DIY repair plan, and a materials &amp; labor estimate. Free.</p>
+  </section>
+
+  <form id="form" novalidate>
+    <fieldset class="card">
+      <legend><span class="stepnum">1</span> Upload the roof</legend>
+      <div class="tip"><b>Best results:</b> one steady walk-around video, or a few short clips. Start with a straight-on shot of the whole building (that becomes your cover). Pause 2–3 seconds on each problem. Recording the owner? Ask first.</div>
+      <label class="drop" for="videos"><span class="drop-t">Add video(s)</span><span class="drop-s">MP4 or MOV straight from your phone</span>
+        <input id="videos" type="file" accept="video/*" multiple></label>
+      <ul class="files" id="videoList"></ul>
+      <label class="drop small" for="photos"><span class="drop-t">Add photos (optional)</span>
+        <input id="photos" type="file" accept="image/*" multiple></label>
+      <ul class="files" id="photoList"></ul>
+    </fieldset>
+
+    <fieldset class="card">
+      <legend><span class="stepnum">2</span> The job</legend>
+      <label>Property address <input id="address" required placeholder="123 Main St, Livingston, MT"></label>
+      <div class="row2">
+        <label>Client / owner name <input id="client" placeholder="optional"></label>
+        <label>Inspection date <input id="date" type="date"></label>
+      </div>
+      <div class="lbl">Roof type <span class="hint">check all that apply</span></div>
+      <div class="checks" id="roofTypes"></div>
+      <label>Notes for the report <span class="hint">optional — roof age, layers, what the owner wants, anything you saw</span>
+        <textarea id="notes" rows="3" placeholder="e.g. Owner says roof is ~18 years old, 2 layers. Leak over the kitchen after storms."></textarea></label>
+    </fieldset>
+
+    <fieldset class="card">
+      <legend><span class="stepnum">3</span> Pricing</legend>
+      <label class="radio"><input type="radio" name="pricing" value="margin" checked> <span><b>Estimate with profit margin</b><br><span class="hint">Adds an overhead &amp; profit line to each option</span></span></label>
+      <div class="pct" id="pctWrap"><label>Margin <input id="pct" type="number" min="0" max="100" step="1" value="20" inputmode="numeric"> %</label></div>
+      <label class="radio"><input type="radio" name="pricing" value="tech"> <span><b>Technical cost breakdown only</b><br><span class="hint">Materials and labor at cost, no margin shown</span></span></label>
+    </fieldset>
+
+    <fieldset class="card">
+      <legend><span class="stepnum">4</span> Your brand</legend>
+      <label>Company name <input id="company" required placeholder="Your Roofing Co."></label>
+      <div class="row2">
+        <label>Your name <input id="preparedBy" placeholder="optional"></label>
+        <label>Phone <input id="phone" type="tel" placeholder="optional"></label>
+      </div>
+      <div class="row2">
+        <label>Email <input id="email" type="email" placeholder="optional"></label>
+        <label>Website <input id="website" placeholder="optional"></label>
+      </div>
+      <label>Tagline <input id="tagline" placeholder="optional — e.g. Shelter you can count on."></label>
+      <div class="row2">
+        <label class="drop small" for="logo"><span class="drop-t" id="logoLabel">Add logo</span><input id="logo" type="file" accept="image/*"></label>
+        <div class="logoPrev" id="logoPrev" aria-live="polite"></div>
+      </div>
+      <div class="row2">
+        <label>Brand color <span class="colorRow"><input id="color" type="color" value="#16603A"><input id="colorHex" value="#16603A" maxlength="7" aria-label="Brand color hex"></span></label>
+        <label>Font <select id="font"></select></label>
+      </div>
+      <div class="lbl">References <span class="hint">optional — adds a Client References page</span></div>
+      <textarea id="references" rows="2" aria-label="References" placeholder="Name, property, phone — one per line"></textarea>
+    </fieldset>
+
+    <div class="err" id="formErr" role="alert"></div>
+    <button class="btn primary big" id="go" type="submit">Build my report</button>
+    <p class="fine">Your video stays on your device; only still frames are sent to the AI. Estimates are AI-generated from the video and should be confirmed on site.</p>
+  </form>
+</main>
+
+<!-- STEP 2: progress -->
+<main id="step-work" class="wrap" hidden>
+  <section class="card work">
+    <h2>Building your report…</h2>
+    <p class="hint">This usually takes 1–3 minutes. Keep this page open.</p>
+    <ol class="steps" id="steps"></ol>
+    <div class="err" id="workErr" role="alert"></div>
+    <button class="btn" id="backBtn" type="button" hidden>Back to the form</button>
+  </section>
+</main>
+
+<!-- STEP 3: review -->
+<div id="step-review" hidden>
+  <div class="toolbar" id="toolbar">
+    <div class="tb-row">
+      <span class="tb-note">Tap any text to edit it.</span>
+      <label class="tb-chk"><input type="checkbox" id="rvMargin"> Margin</label>
+      <label class="tb-pct"><input type="number" id="rvPct" min="0" max="100" inputmode="numeric" aria-label="Margin percent">%</label>
+    </div>
+    <div class="tb-row">
+      <button class="btn primary" id="pdfBtn" type="button">Download PDF</button>
+      <button class="btn" id="shareBtn" type="button">Share link</button>
+      <button class="btn ghost" id="newBtn" type="button">New</button>
+    </div>
+    <div class="share" id="shareOut" hidden></div>
+  </div>
+  <div class="sheetWrap"><div class="sheet"><div class="report" id="report"></div></div></div>
+  <div class="toolbar bottom"><div class="tb-row">
+    <button class="btn primary" id="pdfBtn2" type="button">Download PDF</button>
+    <button class="btn" id="shareBtn2" type="button">Share link</button>
+    <button class="btn ghost" id="topBtn" type="button">Back to top</button>
+  </div></div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
