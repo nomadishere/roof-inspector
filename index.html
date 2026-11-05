@@ -12,6 +12,7 @@
 <body>
 <header class="topbar" id="topbar">
   <div class="logo"><svg width="28" height="16" viewBox="0 0 30 16" aria-hidden="true"><path d="M1 9 L15 2 L29 9" fill="none" stroke="currentColor" stroke-width="2.4"/><line x1="7" y1="14" x2="23" y2="14" stroke="currentColor" stroke-width="2.4"/></svg>Roof Inspector</div>
+  <button class="btn small" id="acctBtn" type="button">Log in</button>
 </header>
 
 <!-- STEP 1: form -->
@@ -77,10 +78,48 @@
       <textarea id="references" rows="2" aria-label="References" placeholder="Name, property, phone — one per line"></textarea>
     </fieldset>
 
+    <fieldset class="card" id="acctCard">
+      <legend><span class="stepnum">5</span> Your free account</legend>
+      <div id="acctSignedOut">
+        <div class="tip">We'll create a free account for you when you build this report, so your logo, colors and reports are saved. Only you can see them.</div>
+        <label class="tb-chk big-chk"><input type="checkbox" id="makeAcct" checked> Create my free account</label>
+        <div class="row2">
+          <label>Email <input id="acctEmail" type="email" autocomplete="email" placeholder="you@company.com"></label>
+          <label>Mobile phone <span class="hint">optional</span><input id="acctPhone" type="tel" autocomplete="tel" placeholder="406-555-0100"></label>
+        </div>
+        <label id="pwWrap">Choose a password <span class="hint">6+ characters, so you can log back in</span><input id="acctPw" type="password" autocomplete="new-password" minlength="6"></label>
+        <p class="hint" id="noAcctNote" hidden>No account: your report won't be saved, but you can still download or share it. Leave your email or phone if you'd like us to keep in touch.</p>
+      </div>
+      <div id="acctSignedIn" hidden>
+        <p>Signed in as <b id="acctWho"></b>. This report will be saved to your account.</p>
+      </div>
+    </fieldset>
+
     <div class="err" id="formErr" role="alert"></div>
     <button class="btn primary big" id="go" type="submit">Build my report</button>
     <p class="fine">Your video stays on your device; only still frames are sent to the AI. Estimates are AI-generated from the video and should be confirmed on site.</p>
   </form>
+</main>
+
+<!-- ACCOUNT: log in / my reports -->
+<main id="step-account" class="wrap" hidden>
+  <section class="card" id="loginBox">
+    <h2>Log in</h2>
+    <p class="hint">See your saved reports, logo and colors.</p>
+    <form id="loginForm" novalidate>
+      <label>Email <input id="loginEmail" type="email" autocomplete="email"></label>
+      <label>Password <input id="loginPw" type="password" autocomplete="current-password"></label>
+      <div class="err" id="loginErr" role="alert"></div>
+      <div class="tb-row" style="margin-top:12px"><button class="btn primary" type="submit" id="loginGo">Log in</button><button class="btn ghost" type="button" id="loginBack">Back</button></div>
+    </form>
+  </section>
+  <section class="card" id="reportsBox" hidden>
+    <h2>My reports</h2>
+    <p class="hint">Signed in as <b id="reportsWho"></b></p>
+    <ul class="files" id="reportsList"></ul>
+    <div class="err" id="reportsErr" role="alert"></div>
+    <div class="tb-row" style="margin-top:12px"><button class="btn primary" type="button" id="newFromList">New report</button><button class="btn ghost" type="button" id="signOutBtn">Sign out</button></div>
+  </section>
 </main>
 
 <!-- STEP 2: progress -->
@@ -106,6 +145,10 @@
       <button class="btn primary" id="pdfBtn" type="button">Download PDF</button>
       <button class="btn" id="shareBtn" type="button">Share link</button>
       <button class="btn ghost" id="newBtn" type="button">New</button>
+    </div>
+    <div class="tb-row" id="saveRow" hidden>
+      <span class="tb-note" id="saveNote"></span>
+      <button class="btn" id="saveBtn" type="button">Save changes</button>
     </div>
     <div class="share" id="shareOut" hidden></div>
   </div>

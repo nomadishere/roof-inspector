@@ -1,9 +1,10 @@
 import { FN, SUPABASE_ANON, SCAN_BUDGET, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
 import { loadVideo, grab, planScan, bestAround, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
 import { render, fitPages, brandVars } from "./report.js";
+import * as acct from "./account.js";
 
 const $ = (id) => document.getElementById(id);
-const state = { videos: [], photos: [], logo: "", model: null };
+const state = { videos: [], photos: [], logo: "", model: null, user: null, reportId: null, dirty: false };
 const BRAND_KEY = "roofInspector.brand.v1";
 
 // ---------- setup ----------
@@ -34,7 +35,7 @@ for (const kind of ["videos", "photos"]) {
   $(kind).addEventListener("change", (e) => { state[kind].push(...e.target.files); e.target.value = ""; listFiles(kind); });
 }
 document.addEventListener("click", (e) => {
-  const b = e.target.closest(".files button"); if (!b) return;
+  const b = e.target.closest(".files button[data-kind]"); if (!b) return;
   state[b.dataset.kind].splice(+b.dataset.i, 1); listFiles(b.dataset.kind);
 });
 
@@ -75,7 +76,7 @@ function step(id, detail) {
   for (const [sid] of STEPS) { const li = $("st-" + sid); li.className = sid === id ? "on" : passed ? "done" : ""; if (sid === id) passed = false; }
   if (detail) $("det-" + id).textContent = detail;
 }
-const show = (which) => { for (const s of ["form", "work", "review"]) $("step-" + s).hidden = s !== which; window.scrollTo(0, 0); };
+const show = (which) => { for (const s of ["form", "work", "review", "account"]) $("step-" + s).hidden = s !== which; window.scrollTo(0, 0); };
 
 // ---------- main pipeline ----------
 $("form").addEventListener("submit", async (e) => {
@@ -98,10 +99,26 @@ $("form").addEventListener("submit", async (e) => {
   const job = { address: $("address").value.trim(), client: $("client").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim() };
   const margin = { include: pricing() === "margin", pct: Math.max(0, Math.min(100, +$("pct").value || 0)) };
 
+  // free account (before any AI spend, so a bad password doesn't waste a run)
+  const aEmail = $("acctEmail").value.trim(), aPhone = $("acctPhone").value.trim();
+  if (!state.user && $("makeAcct").checked) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(aEmail)) return (err.textContent = "Add your email for your free account, or uncheck \"Create my free account\"."), $("acctEmail").focus();
+    if ($("acctPw").value.length < 6) return (err.textContent = "Choose a password with at least 6 characters."), $("acctPw").focus();
+    const go = $("go"); go.disabled = true; go.textContent = "Creating your account…";
+    try { const r = await acct.createOrSignIn(aEmail, $("acctPw").value, { phone: aPhone, company: brand.company }); setUser(r.user); }
+    catch (ex) { err.textContent = ex.message; return; }
+    finally { go.disabled = false; go.textContent = "Build my report"; }
+  } else if (!state.user && (aEmail || aPhone)) {
+    acct.saveLead({ email: aEmail, phone: aPhone, company: brand.company }).catch(() => {});
+  }
+  if (state.user) acct.saveProfile(state.user, { phone: aPhone || undefined, company: brand.company, brand }).catch(() => {});
+
   show("work"); showSteps(); $("workErr").textContent = ""; $("backBtn").hidden = true;
   try {
     state.model = await build({ brand, job, margin, references: $("references").value.trim() });
+    state.reportId = null;
     openReview();
+    await saveToAccount();
   } catch (ex) {
     console.error(ex);
     $("workErr").textContent = ex.message || "Something went wrong.";
@@ -228,13 +245,13 @@ const getPath = (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), 
 function setPath(o, p, v) { const ks = p.split("."); const last = ks.pop(); const t = ks.reduce((a, k) => a[k], o); t[last] = v; }
 rep.addEventListener("input", (e) => {
   const el = e.target.closest("[data-k]"); if (!el || el.classList.contains("numfield")) return;
-  setPath(state.model, el.dataset.k, el.innerText.trim());
+  setPath(state.model, el.dataset.k, el.innerText.trim()); markDirty();
 });
 rep.addEventListener("focusout", (e) => {
   const el = e.target.closest("[data-k]"); if (!el) return;
   if (el.classList.contains("numfield")) {
     const n = parseFloat(el.innerText.replace(/[^0-9.\-]/g, ""));
-    if (!isNaN(n)) setPath(state.model, el.dataset.k, n);
+    if (!isNaN(n)) { setPath(state.model, el.dataset.k, n); markDirty(); }
     const y = window.scrollY; draw(); window.scrollTo(0, y);
   } else fitPages(rep);
 });
@@ -246,11 +263,11 @@ rep.addEventListener("click", (e) => {
     const n = +i + 1; // keep DIY references pointing at the right photos
     state.model.diy.forEach((d) => (d.findings = (d.findings || []).filter((x) => x !== n).map((x) => (x > n ? x - 1 : x))));
   }
-  state.model[arr].splice(+i, 1);
+  state.model[arr].splice(+i, 1); markDirty();
   const y = window.scrollY; draw(); window.scrollTo(0, y);
 });
-$("rvMargin").addEventListener("change", () => { state.model.margin.include = $("rvMargin").checked; draw(); });
-$("rvPct").addEventListener("change", () => { state.model.margin.pct = Math.max(0, Math.min(100, +$("rvPct").value || 0)); if (state.model.margin.include) draw(); });
+$("rvMargin").addEventListener("change", () => { state.model.margin.include = $("rvMargin").checked; draw(); markDirty(); });
+$("rvPct").addEventListener("change", () => { state.model.margin.pct = Math.max(0, Math.min(100, +$("rvPct").value || 0)); if (state.model.margin.include) draw(); markDirty(); });
 
 $("pdfBtn").addEventListener("click", () => {
   const t = document.title; document.title = `Roof Report - ${state.model.job.address}`.replace(/[\\/:*?"<>|]/g, "");
@@ -262,7 +279,7 @@ $("newBtn").addEventListener("click", () => {
   ["address", "client", "notes"].forEach((k) => ($(k).value = "")); document.querySelectorAll("#roofTypes input").forEach((i) => (i.checked = false));
   show("form");
 });
-function confirmLeave() { return window.confirm ? window.confirm("Start a new report? This one will be cleared unless you've shared or downloaded it.") : true; }
+function confirmLeave() { if (state.user && !state.dirty) return true; return window.confirm ? window.confirm("Start a new report? This one will be cleared unless you've shared or downloaded it.") : true; }
 
 $("shareBtn").addEventListener("click", async () => {
   const btn = $("shareBtn"), out = $("shareOut");
@@ -273,6 +290,7 @@ $("shareBtn").addEventListener("click", async () => {
     const put = await fetch(s.signedUrl, { method: "PUT", headers: { "Content-Type": "application/json", "x-upsert": "false" }, body });
     if (!put.ok) throw new Error("Couldn't save the report for sharing. Please try again.");
     const link = new URL("view.html?id=" + s.id, location.href).href;
+    state.model.shareId = s.id; markDirty();
     out.hidden = false;
     out.innerHTML = `<input id="shareLink" readonly value="${link}" aria-label="Share link"><button class="btn" id="copyBtn" type="button">Copy</button>${navigator.share ? `<button class="btn" id="nativeShare" type="button">Send…</button>` : ""}`;
     $("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(link); $("copyBtn").textContent = "Copied"; } catch { $("shareLink").select(); } };
@@ -282,11 +300,83 @@ $("shareBtn").addEventListener("click", async () => {
   } finally { btn.disabled = false; btn.textContent = "Share link"; }
 });
 
-window.addEventListener("beforeunload", (e) => { if (state.model) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (state.model && (!state.user || state.dirty)) { e.preventDefault(); e.returnValue = ""; } });
 
 $("pdfBtn2").addEventListener("click", () => $("pdfBtn").click());
 $("shareBtn2").addEventListener("click", () => { window.scrollTo(0, 0); $("shareBtn").click(); });
 $("topBtn").addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+// ---------- accounts ----------
+let saveTimer = null;
+function markDirty() {
+  if (!state.user || !state.model) return;
+  state.dirty = true; $("saveNote").textContent = "Unsaved changes"; $("saveBtn").hidden = false;
+  clearTimeout(saveTimer); saveTimer = setTimeout(saveToAccount, 4000);
+}
+async function saveToAccount() {
+  $("saveRow").hidden = !state.user;
+  if (!state.user || !state.model) return;
+  clearTimeout(saveTimer);
+  $("saveNote").textContent = "Saving to your account…"; $("saveBtn").hidden = true;
+  try { state.reportId = await acct.saveReport(state.user, state.model, state.reportId); state.dirty = false; $("saveNote").textContent = "Saved to your account ✓"; }
+  catch (e) { $("saveNote").textContent = e.message; $("saveBtn").hidden = false; }
+}
+$("saveBtn").addEventListener("click", saveToAccount);
+
+function setUser(user) {
+  state.user = user || null;
+  $("acctBtn").textContent = user ? "My reports" : "Log in";
+  $("acctSignedOut").hidden = !!user; $("acctSignedIn").hidden = !user;
+  if (user) $("acctWho").textContent = user.email;
+  $("saveRow").hidden = !(user && state.model);
+}
+async function applyProfile(user) {
+  const p = await acct.loadProfile(user).catch(() => null);
+  const b = p?.brand; if (!b) return;
+  for (const k of ["company", "preparedBy", "phone", "email", "website", "tagline"]) if (b[k] && !$(k).value) $(k).value = b[k];
+  if (b.color) { $("color").value = b.color; $("colorHex").value = b.color; }
+  if (b.fontIndex != null) $("font").value = b.fontIndex;
+  if (b.logo) setLogo(b.logo);
+}
+$("makeAcct").addEventListener("change", () => { const on = $("makeAcct").checked; $("pwWrap").hidden = !on; $("noAcctNote").hidden = on; });
+$("email").addEventListener("change", () => { if (!$("acctEmail").value) $("acctEmail").value = $("email").value; });
+
+async function showAccount() {
+  show("account");
+  $("loginBox").hidden = !!state.user; $("reportsBox").hidden = !state.user;
+  if (!state.user) return;
+  $("reportsWho").textContent = state.user.email; $("reportsErr").textContent = ""; $("reportsList").innerHTML = "<li><span>Loading…</span></li>";
+  try {
+    const rows = await acct.listReports();
+    $("reportsList").innerHTML = rows.length ? rows.map((r) => `<li><span>${esc(r.address || "Untitled")}<span class="meta">${esc(r.client || "")}${r.client ? " · " : ""}${new Date(r.created_at).toLocaleDateString()}</span></span><span class="acts"><button type="button" class="open" data-open="${r.id}">Open</button><button type="button" data-del="${r.id}" aria-label="Delete report">Delete</button></span></li>`).join("") : "<li><span>No reports yet.</span></li>";
+  } catch (e) { $("reportsErr").textContent = e.message; $("reportsList").innerHTML = ""; }
+}
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+$("acctBtn").addEventListener("click", async () => {
+  if (!$("step-review").hidden && state.model) { if (state.user) { if (state.dirty) await saveToAccount(); } else if (!confirmLeave()) return; }
+  showAccount();
+});
+$("loginBack").addEventListener("click", () => show(state.model ? "review" : "form"));
+$("newFromList").addEventListener("click", () => { state.model = null; state.reportId = null; show("form"); });
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("loginErr").textContent = ""; $("loginGo").disabled = true;
+  try { const u = await acct.signIn($("loginEmail").value.trim(), $("loginPw").value); setUser(u); applyProfile(u); showAccount(); }
+  catch (ex) { $("loginErr").textContent = ex.message; }
+  finally { $("loginGo").disabled = false; }
+});
+$("signOutBtn").addEventListener("click", async () => { await acct.signOut(); setUser(null); state.model = null; state.reportId = null; show("form"); });
+$("reportsList").addEventListener("click", async (e) => {
+  const o = e.target.closest("[data-open]"), d = e.target.closest("[data-del]");
+  if (o) {
+    o.textContent = "Opening…";
+    try { state.model = await acct.openReport(state.user, o.dataset.open); state.reportId = o.dataset.open; state.dirty = false; openReview(); $("saveRow").hidden = false; $("saveNote").textContent = "Saved to your account ✓"; $("saveBtn").hidden = true; }
+    catch (ex) { $("reportsErr").textContent = ex.message; o.textContent = "Open"; }
+  } else if (d) {
+    if (window.confirm && !window.confirm("Delete this report? This can't be undone.")) return;
+    await acct.deleteReport(state.user, d.dataset.del).catch(() => {}); showAccount();
+  }
+});
+acct.currentUser().then((u) => { setUser(u); if (u) applyProfile(u); }).catch(() => {});
 
 // testing hook
 window.__roofInspector = { state, openReview, draw };

@@ -24,3 +24,11 @@ Check spend: `select date_trunc('day',created_at) d, count(*), sum(cost_usd) fro
 | Edge function time | ~150 s per call on Free | very long videos may time out | calls are split; Pro raises limit |
 | GitHub Pages | 100 GB/mo bandwidth, not for commercial use | | move to Cloudflare Pages when charging |
 | AI spend | $50/mo cap | users see limit message | raise cap or add paid plans |
+
+## Free accounts
+- Checkbox above **Build my report** (on by default): "We'll create a free account for you…". Email + password + optional mobile phone.
+- `ri-signup` edge function creates the account already confirmed (no email needed), then the page signs in.
+- Saved per account, private by row-level security: `ri_profiles` (email, phone, company, logo/colors/font), `ri_reports` + private bucket `ri-user/<user id>/<report id>.json`. Reports auto-save after edits.
+- People who skip the account but leave an email/phone go into `ri_leads` (insert-only for the public).
+- "Log in" / "My reports" button top-right: open, delete, sign out.
+- Not yet: password reset (needs a custom email sender like Resend).
