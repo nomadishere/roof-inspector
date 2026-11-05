@@ -14,7 +14,7 @@ export async function createOrSignIn(email, password, extra = {}) {
   if (r.ok) created = true;
   else if (d.error !== "exists") throw new Error(d.error || "Couldn't create your account. Please try again.");
   const inn = await sb.auth.signInWithPassword({ email, password });
-  if (inn.error) throw new Error(created ? friendly(inn.error.message) : "That email already has an account, and the password doesn't match. Use your password, or uncheck \"Create my free account\".");
+  if (inn.error) throw new Error(created ? friendly(inn.error.message) : "You already have an account with this email. Type that account's password here, or tap \"Log in\" at the top and use \"Forgot password?\" to set a new one.");
   return { user: inn.data.user, created };
 }
 export async function signIn(email, password) {
