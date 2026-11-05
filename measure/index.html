@@ -207,7 +207,7 @@ function render() {
   $("rMeta").textContent = `Aerial imagery ${d.month || "?"}/${d.year || "?"} · ${String(M.quality || "").toLowerCase()} quality · ${M.edges?.style || ""}`;
   const k = [["Roof area", fmt(M.roof.areaFt2) + " sq ft"], ["Squares", fmt(mat.sq, 1)], [`Squares + ${mat.w}% waste`, fmt(mat.sqw, 1)], ["Roof faces", (M.facets || []).length],
     ["Main pitch", fmt(p12(pi.avg), 1) + "/12"], [pi.lowShare > 0.6 ? "Roof type" : "Steep-slope pitch", pi.lowShare > 0.6 ? "Low-slope" : fmt(p12(pi.steep), 1) + "/12"],
-    [pi.lowShare > 0.6 ? "Roof perimeter" : "Drip edge", fmt((LEN.eave || 0) + (LEN.rake || 0) + (LEN.edge || 0) + (LEN.parapet || 0)) + " ft"], ["Ridges + hips", fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft"]];
+    [pi.lowShare > 0.6 ? "Roof outline (all edges + walls)" : "Drip edge (eaves + rakes)", fmt(pi.lowShare > 0.6 ? (LEN.edge || 0) + (LEN.parapet || 0) + (LEN.flashing || 0) + (LEN.eave || 0) + (LEN.rake || 0) : (LEN.eave || 0) + (LEN.rake || 0)) + " ft"], ["Ridges + hips", fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft"]];
   $("kpis").innerHTML = k.map(([a, b]) => `<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join("");
   $("edges").innerHTML = `<tr><th>Edge</th><th style="text-align:right">Length (ft)</th></tr>` + Object.keys(NAMES).map((t) =>
     `<tr><td><span class="sw" style="background:${COL[t]};border:1px solid #0003"></span>${NAMES[t]}</td><td class="n"><input inputmode="decimal" data-t="${t}" value="${LEN[t] || 0}" aria-label="${NAMES[t]} in feet"></td></tr>`).join("");
@@ -224,7 +224,7 @@ function render() {
 function renderNoEdges() { // update everything except the edge inputs (so typing isn't interrupted)
   const mat = materials();
   $("mats").innerHTML = `<tr><th>Item</th><th style="text-align:right">Qty</th><th>Unit</th></tr>` + mat.rows.map(([a, q, u, n]) => `<tr><td>${a}<div class="note">${n}</div></td><td class="n">${q}</td><td>${u}</td></tr>`).join("");
-  const kp = $("kpis").children; if (kp[6]) kp[6].querySelector("b").textContent = fmt((LEN.eave || 0) + (LEN.rake || 0) + (LEN.edge || 0) + (LEN.parapet || 0)) + " ft"; if (kp[7]) kp[7].querySelector("b").textContent = fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft";
+  const kp = $("kpis").children; if (kp[6]) kp[6].querySelector("b").textContent = fmt(pitchInfo(M).lowShare > 0.6 ? (LEN.edge || 0) + (LEN.parapet || 0) + (LEN.flashing || 0) + (LEN.eave || 0) + (LEN.rake || 0) : (LEN.eave || 0) + (LEN.rake || 0)) + " ft"; if (kp[7]) kp[7].querySelector("b").textContent = fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft";
   if (kp[2]) { kp[2].querySelector("b").textContent = fmt(mat.sqw, 1); kp[2].querySelector("span").textContent = `Squares + ${mat.w}% waste`; }
 }
 $("sys").addEventListener("change", () => M && render());
