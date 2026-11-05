@@ -234,6 +234,7 @@ async function uploadJob(input, notify) {
   const source = state.videos.length ? `Walkthrough video${state.videos.length > 1 ? "s" : ""} ${state.videos.map((v) => v.name).join(", ")} (${Math.floor(secs / 60)} min ${secs % 60} s)` : `${state.photos.length} photos`;
   await jobApi({ action: "start", id, images: manifest, work, source });
   try { localStorage.setItem(JOB_KEY, JSON.stringify({ id, at: Date.now() })); } catch {}
+  clearJobDraft();
   return id;
 }
 const STAGE_STEP = { upload: "scan", vision: "vision", merge: "merge", plan: "plan", write: "write", build: "build", done: "build" };
@@ -483,7 +484,7 @@ window.__roofInspector = { state, openReview, draw };
 const DRAFT_KEY = "roofly.draft.v1";
 var QUICK = new URLSearchParams(location.search).get("me") === "justin";
 function saveDraft() {
-  const d = { fields: {}, checks: {} };
+  const d = { fields: {}, checks: {}, jobCleared: true };
   for (const el of $("form").querySelectorAll("input, textarea, select")) {
     if (el.type === "file" || el.type === "password") continue;
     const key = el.id || `${el.name}=${el.value}`;
@@ -493,9 +494,18 @@ function saveDraft() {
   d.logo = state.logo || "";
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch {}
 }
+// Customer / job fields are only kept until that report is sent off (so a failed upload can be retried).
+// After that the next report starts with a clean customer section; your company details stay.
+const JOB_FIELDS = ["address", "client", "clientPhone", "clientEmail", "notes", "date"];
+function clearJobDraft() {
+  let d; try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch {}
+  if (d) { for (const k of JOB_FIELDS) delete d.fields[k]; d.jobCleared = true; try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch {} }
+  for (const k of JOB_FIELDS) if ($(k) && k !== "date") $(k).value = "";
+}
 function restoreDraft() {
   let d; try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch {}
   if (!d) return;
+  if (!d.jobCleared) { for (const k of JOB_FIELDS) delete d.fields[k]; d.jobCleared = true; } // one-time cleanup of older saved drafts
   for (const el of $("form").querySelectorAll("input, textarea, select")) {
     if (el.type === "file" || el.type === "password") continue;
     const key = el.id || `${el.name}=${el.value}`;
