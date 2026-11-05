@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
   const sr = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${lat}&location.longitude=${lng}&requiredQuality=LOW&key=${key}`);
   const sd = await sr.json();
   if (!sr.ok) {
-    const msg = sr.status === 404 ? "Google has no roof data for this building yet. You can still trace it by hand." : (sd?.error?.message || "Google's roof data isn't available right now.");
+    const msg = sr.status === 404 ? "Google doesn't have roof data for this building yet, so it can't be measured automatically. Try the address of the building next door to check, or measure on site." : sr.status === 429 ? "Roofly's free measurements for today are used up. Please try again tomorrow." : "Google's roof data isn't available right now. Please try again in a few minutes.";
     return out({ error: "NO_ROOF", message: msg, location: { lat, lng }, formatted });
   }
   const sp = sd.solarPotential || {};

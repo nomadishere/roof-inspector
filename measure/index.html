@@ -213,7 +213,7 @@ function render() {
     `<tr><td><span class="sw" style="background:${COL[t]};border:1px solid #0003"></span>${NAMES[t]}</td><td class="n"><input inputmode="decimal" data-t="${t}" value="${LEN[t] || 0}" aria-label="${NAMES[t]} in feet"></td></tr>`).join("");
   $("mats").innerHTML = `<tr><th>Item</th><th style="text-align:right">Qty</th><th>Unit</th></tr>` + mat.rows.map(([a, q, u, n]) => `<tr><td>${a}<div class="note">${n}</div></td><td class="n">${q}</td><td>${u}</td></tr>`).join("");
   $("matNote").textContent = { shingle: "Asphalt shingle system.", metal: "Metal roof system.", lowslope: "EPDM / low-slope membrane system." }[mat.sys] + " Quantities are estimates from the aerial measurements.";
-  $("faces").innerHTML = `<tr><th>#</th><th>Pitch</th><th>Faces</th><th style="text-align:right">Area (sq ft)</th></tr>` + (M.facets || []).map((f) =>
+  $("faces").innerHTML = `<tr><th>#</th><th>Pitch</th><th>Facing</th><th style="text-align:right">Area (sq ft)</th></tr>` + (M.facets || []).map((f) =>
     `<tr><td>${f.n}</td><td>${fmt(p12(f.pitchDeg), 1)}/12 <span class="note">(${Math.round(f.pitchDeg)}°)</span></td><td>${dirn(f.azimuthDeg)}</td><td class="n">${fmt(f.areaFt2)}</td></tr>`).join("");
   const c = M.edges?.counts || {}, seen = Object.entries(c).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ");
   $("aiNote").textContent = (seen ? "Seen on the roof: " + seen + ". " : "") + (M.edges?.notes ? "Check: " + M.edges.notes : "");
