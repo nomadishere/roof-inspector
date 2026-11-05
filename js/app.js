@@ -1,10 +1,10 @@
-import { FN, SUPABASE_ANON, SCAN_BUDGET, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
+import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, BATCH, PARALLEL, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
 import { loadVideo, grab, planScan, bestAround, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
-import { render, fitPages, brandVars } from "./report.js";
+import { render, fitPages, brandVars, parseRefs } from "./report.js";
 import * as acct from "./account.js";
 
 const $ = (id) => document.getElementById(id);
-const state = { videos: [], photos: [], logo: "", model: null, user: null, reportId: null, dirty: false };
+const state = { videos: [], photos: [], work: [], logo: "", model: null, user: null, reportId: null, dirty: false };
 const BRAND_KEY = "roofInspector.brand.v1";
 
 // ---------- setup ----------
@@ -15,7 +15,7 @@ $("date").value = new Date().toISOString().slice(0, 10);
 try {
   const saved = JSON.parse(localStorage.getItem(BRAND_KEY) || "null");
   if (saved) {
-    for (const k of ["company", "preparedBy", "phone", "email", "website", "tagline", "references"]) if (saved[k]) $(k).value = saved[k];
+    for (const k of ["company", "preparedBy", "phone", "email", "website", "tagline", "references", "about"]) if (saved[k]) $(k).value = saved[k];
     if (saved.color) { $("color").value = saved.color; $("colorHex").value = saved.color; }
     if (saved.font != null) $("font").value = saved.font;
     if (saved.logo) setLogo(saved.logo);
@@ -28,9 +28,10 @@ document.querySelectorAll('input[name=pricing]').forEach((r) => r.addEventListen
 const pricing = () => document.querySelector('input[name=pricing]:checked').value;
 
 function listFiles(kind) {
-  const ul = $(kind === "videos" ? "videoList" : "photoList");
+  const ul = $({ videos: "videoList", photos: "photoList", work: "workList" }[kind]);
   ul.innerHTML = state[kind].map((f, i) => `<li><span>${f.name} · ${(f.size / 1048576).toFixed(1)} MB</span><button type="button" data-kind="${kind}" data-i="${i}" aria-label="Remove ${f.name}">Remove</button></li>`).join("");
 }
+$("workPhotos").addEventListener("change", (e) => { state.work.push(...e.target.files); e.target.value = ""; listFiles("work"); });
 for (const kind of ["videos", "photos"]) {
   $(kind).addEventListener("change", (e) => { state[kind].push(...e.target.files); e.target.value = ""; listFiles(kind); });
 }
@@ -50,28 +51,33 @@ $("logo").addEventListener("change", async (e) => {
 });
 
 // ---------- API ----------
-async function api(name, body, tries = 2) {
+async function api(name, body, tries = 3) {
   try { return await api1(name, body); }
   catch (e) { if (tries > 1 && e.retry) { await new Promise((r) => setTimeout(r, 1500)); return api(name, body, tries - 1); } throw e; }
 }
 async function api1(name, body) {
-  const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 175000);
+  const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 200000);
   let r;
   try {
     r = await fetch(FN + name, { method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON }, body: JSON.stringify(body) });
-  } catch (e) { throw new Error(e.name === "AbortError" ? "That took too long. Please try again, maybe with a shorter video." : "Couldn't reach Roof Inspector. Check your connection and try again."); }
+  } catch (e) { const x = new Error(e.name === "AbortError" ? "One step took too long. Please try again." : "Couldn't reach Roofly. Check your connection and try again."); x.retry = true; throw x; }
   finally { clearTimeout(to); }
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error(data.message || "Something went wrong. Please try again."); e.retry = r.status === 502; throw e; }
+  const data = await r.json().catch(() => ({ error: "AI", message: "The answer was cut off. Retrying…" }));
+  if (!r.ok || data.error) {
+    const e = new Error(data.message || "Something went wrong. Please try again.");
+    e.retry = r.status >= 500 || ["AI", "PARSE", "AI_BUSY"].includes(data.error) || (!data.error && !data.result);
+    throw e;
+  }
   return data;
 }
 
 // ---------- progress UI ----------
 const STEPS = [
-  ["scan", "Pulling stills from your video", "About 1 frame per second"],
-  ["vision", "Finding the problems", "AI reviews every still"],
+  ["scan", "Pulling every second of your video", "1 still per second"],
+  ["vision", "Inspecting every frame", "Looking for every problem, batch by batch"],
+  ["merge", "Putting the findings together", "Removing duplicates and rating priorities"],
   ["sharp", "Picking the sharpest shots", "2 frames per second around each problem, circled in red"],
-  ["write", "Writing the repair plan and estimate", "Materials and labor for each roof type"],
+  ["write", "Writing the repair plan, proposals and your note", "DIY plan, interior leak report, Options A and B"],
   ["build", "Building your report", ""],
 ];
 function showSteps() { $("steps").innerHTML = STEPS.map(([id, t, d]) => `<li id="st-${id}"><span class="dot"></span><span>${t}<span class="det" id="det-${id}">${d}</span></span></li>`).join(""); }
@@ -97,10 +103,11 @@ $("form").addEventListener("submit", async (e) => {
     company: $("company").value.trim(), preparedBy: $("preparedBy").value.trim(), phone: $("phone").value.trim(),
     email: $("email").value.trim(), website: $("website").value.trim(), tagline: $("tagline").value.trim(),
     color: $("colorHex").value.trim() || "#16603A", fontIndex: +$("font").value, fontStack: font.stack, logo: state.logo,
+    about: $("about").value.trim(),
   };
   try { localStorage.setItem(BRAND_KEY, JSON.stringify({ ...brand, font: brand.fontIndex, references: $("references").value })); } catch {}
   const d = $("date").value ? new Date($("date").value + "T12:00:00") : new Date();
-  const job = { address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim() };
+  const job = { company: brand.company, address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim() };
   const margin = { include: pricing() === "margin", pct: Math.max(0, Math.min(100, +$("pct").value || 0)) };
 
   // free account (before any AI spend, so a bad password doesn't waste a run)
@@ -131,38 +138,74 @@ $("form").addEventListener("submit", async (e) => {
 });
 $("backBtn").addEventListener("click", () => show("form"));
 
+async function pool(items, n, fn) { // run fn over items, n at a time, keep order
+  const out = new Array(items.length); let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (next < items.length) { const k = next++; out[k] = await fn(items[k], k); } }));
+  return out;
+}
+
 async function build({ brand, job, margin, references }) {
-  // 1. scan
+  // 1. every second of every video
   step("scan");
   const vids = [];
   for (const f of state.videos) vids.push(await loadVideo(f));
   const multi = vids.length > 1;
   const vLabel = (vi, t) => (multi ? `Video ${vi + 1} ` : "Video ") + fmtTime(t);
   const images = [], index = {};
-  const { plan } = planScan(vids, SCAN_BUDGET);
+  const totalSec = vids.reduce((a, v) => a + v.duration, 0);
+  const { plan } = planScan(vids, Math.min(SCAN_MAX, Math.ceil(totalSec * SCAN_FPS) + vids.length));
   for (let k = 0; k < plan.length; k++) {
     const { vi, t } = plan[k];
-    const c = await grab(vids[vi], t, 640);
+    const c = await grab(vids[vi], t, 768);
     const id = "F" + (k + 1);
     images.push({ id, label: vLabel(vi, t), data: jpeg(c, 0.72) });
     index[id] = { kind: "video", vi, t };
-    if (k % 4 === 0) step("scan", `${k + 1} of ${plan.length} stills`);
+    if (k % 5 === 0) step("scan", `${k + 1} of ${plan.length} stills`);
   }
   const photoImgs = [];
   for (let p = 0; p < Math.min(state.photos.length, PHOTO_BUDGET); p++) {
     const img = await loadImage(state.photos[p]); photoImgs.push(img);
     const id = "P" + (p + 1);
-    images.push({ id, label: "Photo " + (p + 1), data: jpeg(imageToCanvas(img, 900), 0.75) });
+    images.push({ id, label: "Photo " + (p + 1), data: jpeg(imageToCanvas(img, 1024), 0.78) });
     index[id] = { kind: "photo", p };
   }
   step("scan", `${images.length} stills ready`);
 
-  // 2. vision
-  step("vision");
-  const { result: A } = await api("ri-analyze", { step: "vision", job, images });
-  const findingsIn = Array.isArray(A.findings) ? A.findings : [];
+  // 2. inspect every frame, in batches, several at once
+  const batches = [];
+  for (let i = 0; i < images.length; i += BATCH) batches.push(images.slice(i, i + BATCH));
+  let done = 0;
+  step("vision", `0 of ${batches.length} batches`);
+  const raw = await pool(batches, PARALLEL, async (imgs, bi) => {
+    const part = `batch ${bi + 1} of ${batches.length}, ${imgs[0].label} to ${imgs[imgs.length - 1].label}`;
+    const r = await api("ri-report", { step: "vision", job, images: imgs, part });
+    step("vision", `${++done} of ${batches.length} batches`);
+    const res = r.result || {};
+    // attach labels so the merge step knows where each image is in the video
+    for (const f of [...(res.findings || []), ...(res.leaks || [])]) f.source = imgs.find((x) => x.id === f.image)?.label || "";
+    return res;
+  });
 
-  // 3. sharp frames + circles
+  // 3. merge into one inspection (the AI only picks and orders; descriptions stay as written)
+  step("merge");
+  const rawF = {}, rawL = {}, flat = [], covers = [], factsSeen = [];
+  raw.forEach((res, bi) => {
+    (res.findings || []).forEach((f) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
+    (res.leaks || []).forEach((l) => { const id = "L" + (Object.keys(rawL).length + 1); rawL[id] = l; flat.push({ id, at: l.source, location: l.location, observed: l.observed }); });
+    covers.push(...(res.cover_candidates || [])); if (res.facts_seen) factsSeen.push(res.facts_seen);
+  });
+  const M = (await api("ri-report", { step: "consolidate", job, batches: { items: flat, cover_candidates: covers.slice(0, 20), facts_seen: factsSeen } })).result || {};
+  const C = { cover: M.cover, roof_system: M.roof_system, facts: M.facts, size_squares: M.size_squares, findings: [], leaks: [] };
+  const usedF = new Set(), usedL = new Set();
+  for (const k of M.findings || []) { const f = rawF[k.use]; if (!f || usedF.has(k.use)) continue; usedF.add(k.use); (k.also || []).forEach((x) => usedF.add(x)); C.findings.push({ ...f, title: k.title || f.title, severity: k.severity || f.severity }); }
+  for (const k of M.leaks || []) { const l = rawL[k.use]; if (!l || usedL.has(k.use)) continue; usedL.add(k.use); (k.also || []).forEach((x) => usedL.add(x)); C.leaks.push({ ...l, condition: k.condition || l.condition || "" }); }
+  // safety net: nothing the camera found is silently lost
+  for (const id in rawF) if (!usedF.has(id)) C.findings.push(rawF[id]);
+  for (const id in rawL) if (!usedL.has(id)) C.leaks.push(rawL[id]);
+  step("merge", `${C.findings.length} findings, ${C.leaks.length} interior leak locations`);
+  const planP = api("ri-report", { step: "plan", job, c: { roof_system: C.roof_system, facts: C.facts, findings: C.findings.map((f, i) => ({ n: i + 1, title: f.title, category: f.category, severity: f.severity, description: f.description })), leaks: C.leaks.map(({ location, condition, observed, significance }) => ({ location, condition, observed, significance })) } });
+
+  // 4. sharpest frames around each problem, circled
   step("sharp");
   const fullFor = async (ref, box) => {
     const r = index[ref]; if (!r) return null;
@@ -171,49 +214,58 @@ async function build({ brand, job, margin, references }) {
     return { img: jpeg(box ? circle(canvas, box) : canvas, 0.82), label: vLabel(r.vi, t) };
   };
   const findings = [];
-  for (let i = 0; i < findingsIn.length; i++) {
-    const f = findingsIn[i];
-    step("sharp", `Photo ${i + 1} of ${findingsIn.length}`);
+  for (let i = 0; i < C.findings.length; i++) {
+    const f = C.findings[i]; step("sharp", `Photo ${i + 1} of ${C.findings.length}`);
     const shot = (await fullFor(f.image, f.box)) || (await fullFor(images[0].id, null));
     findings.push({ title: f.title || "Finding", category: f.category || "Roof", severity: f.severity || "Medium", description: f.description || "", img: shot?.img || "", timeLabel: shot?.label || "" });
   }
   const leaks = [];
-  for (const l of Array.isArray(A.leaks) ? A.leaks : []) {
-    const shot = await fullFor(l.image, null);
-    leaks.push({ location: l.location || "", condition: l.condition || "", img: shot?.img || "", timeLabel: shot?.label || "" });
+  for (const l of C.leaks) {
+    const shot = await fullFor(l.image, l.box);
+    leaks.push({ location: l.location || "", condition: l.condition || "", observed: l.observed || "", significance: l.significance || "", img: shot?.img || "", timeLabel: shot?.label || "" });
   }
-  const coverShot = (await fullFor(A.cover, null)) || (await fullFor(images[0].id, null));
+  const coverShot = (await fullFor(C.cover, null)) || (await fullFor(images[0].id, null));
 
-  // 4. DIY + estimates in parallel
+  // 5. write everything else at once
   step("write");
-  const analysis = { findings: findingsIn, summary: A.summary, size_squares: A.size_squares };
-  const [diyR, ...estR] = await Promise.all([
-    api("ri-analyze", { step: "diy", job, analysis }),
-    ...job.roofTypes.map((rt) => api("ri-analyze", { step: "estimate", job, analysis, roofType: rt })),
+  const P = (await planP).result || {};
+  Object.assign(C, { summary: P.summary, leak_summary: P.leak_summary, leak_next_steps: P.leak_next_steps, repair_phases: P.repair_phases, limitations: P.limitations });
+  const cText = { roof_system: C.roof_system, summary: C.summary, facts: C.facts, size_squares: C.size_squares, findings: C.findings.map(({ title, category, severity, description }) => ({ title, category, severity, description })), leaks: C.leaks, repair_phases: C.repair_phases };
+  const workPh = (C.repair_phases || []).filter((p) => (p.findings || []).length && !/ongoing/i.test(p.name || ""));
+  let wrote = 0; const total = 2 + workPh.length + job.roofTypes.length;
+  const tick = (r) => { step("write", `${++wrote} of ${total} sections written`); return r; };
+  // each phase's repair items in its own call, so no single answer runs long
+  const itemsP = Promise.all(workPh.map((ph, i) => api("ri-report", { step: "diy_items", job, c: { ...cText, phase: ph, startAt: 1 + workPh.slice(0, i).reduce((a, p) => a + Math.max(1, Math.round(p.findings.length / 2)), 0) } }).then(tick)));
+  const [guide, itemsArr, note, ...ests] = await Promise.all([
+    api("ri-report", { step: "diy_guide", job, c: cText }).then(tick),
+    itemsP,
+    api("ri-report", { step: "note", job, c: cText }).then(tick),
+    ...job.roofTypes.map((rt) => api("ri-report", { step: "estimate", job, c: cText, roofType: rt }).then(tick)),
   ]);
 
-  // 5. assemble
+  // past-work photos for the Our Work page
+  const workPhotos = [];
+  for (const f of state.work.slice(0, 8)) { try { workPhotos.push({ img: jpeg(imageToCanvas(await loadImage(f), 1200), 0.8), caption: "" }); } catch {} }
+
   step("build");
-  const company = brand.company;
+  const secs = Math.round(totalSec), src = state.videos.length ? `Walkthrough video${state.videos.length > 1 ? "s" : ""} ${state.videos.map((v) => v.name).join(", ")} (${Math.floor(secs / 60)} min ${secs % 60} s)` : `${state.photos.length} photos`;
+  const nf = findings.length;
   return {
-    v: 1, brand, job, margin, references,
-    cover: coverShot?.img || "",
-    coverTitle: "Roof Inspection Report",
-    summary: A.summary || "",
-    facts: Array.isArray(A.roof_facts) ? A.roof_facts : [],
-    findings, leaks,
-    diy: (diyR.result.items || []).map((x) => ({ ...x, findings: (x.findings || []).filter((n) => n >= 1 && n <= findings.length) })),
-    estimates: estR.map((r, i) => ({ roofType: job.roofTypes[i], options: (r.result.options || []).map(cleanOpt), assumptions: r.result.assumptions || [] })),
-    note: `Thank you for the chance to look at the roof at ${job.address}.\n\nThis report shows what we found, in plain language, with every problem photographed and circled. We've also included a step-by-step repair plan you can use with anyone, even if you never hire us. Good advice should be free.\n\nIf anything here is unclear, call us. We're happy to walk the roof with you.`,
-    recommendation: "We recommend handling the Critical and High items first, since those are the ones most likely to let water in. Medium and Low items can be planned and budgeted for.",
-    terms: "50% deposit to schedule, balance due at substantial completion.\nWorkmanship warranty provided in writing at signing.\nProposal valid for 30 days.\nChanges by written change order.",
-    exclusions: "Hidden damage found after tear-off (decking, framing) is priced separately and approved by you before work continues.\nInterior repairs are not included unless listed.\nQuantities marked \"confirm\" are estimated from video and will be verified on site.",
-    createdAt: new Date().toISOString(), madeWith: "Roof Inspector",
-    company,
+    v: 2, brand, job, margin, references, refs: parseRefs(references),
+    cover: coverShot?.img || "", coverTitle: "Roof Report, Repair Plan & Proposals",
+    source: src, roof_system: C.roof_system || "", summary: Array.isArray(C.summary) ? C.summary : [C.summary || ""],
+    facts: Array.isArray(C.facts) ? C.facts : [], findings, leaks,
+    leak_summary: C.leak_summary || "", leak_next_steps: C.leak_next_steps || [], limitations: C.limitations || [],
+    phases: (C.repair_phases || []).map((p) => ({ name: p.name, covers: p.covers, when: p.when })),
+    diy: { guide: guide.result || {}, phases: (() => { let n = 0; return itemsArr.map((r, i) => ({ name: workPh[i].name, items: ((r.result || {}).items || []).map((x) => ({ ...x, title: `${++n}. ` + String(x.title || "Repair").replace(/^\s*\d+[.)]\s*/, ""), findings: (x.findings || []).filter((n) => n >= 1 && n <= nf) })) })); })() },
+    note: note.result || {},
+    estimates: ests.map((r, i) => { const e = r.result || {}; return { roofType: job.roofTypes[i], options: (e.options || []).map(cleanOpt), compare_rows: e.compare_rows || [], recommended: e.recommended || "", recommendation: Array.isArray(e.recommendation) ? e.recommendation : [e.recommendation || ""], quantities_note: e.quantities_note || "", assumptions: e.assumptions || [], exclusions: e.exclusions || [], payment: e.payment || "" }; }),
+    terms: "50% deposit to schedule, balance due at substantial completion. Proposal valid for 30 days. Changes by written change order.",
+    workPhotos, createdAt: new Date().toISOString(), madeWith: "Roofly",
   };
 }
 function cleanOpt(o) {
-  return { name: o.name || "Option", scope: o.scope || "", lines: (o.lines || []).map((l) => ({ kind: l.kind === "Labor" ? "Labor" : "Materials", desc: l.desc || "", qty: +l.qty || 0, unit: l.unit || "", price: +l.price || 0 })) };
+  return { key: o.key || "", name: o.name || "Option", subtitle: o.subtitle || "", warranty: o.warranty || "", timeline: o.timeline || "", scope: o.scope || "", lines: (o.lines || []).map((l) => ({ kind: l.kind === "Labor" ? "Labor" : "Materials", desc: l.desc || "", qty: +l.qty || 0, unit: l.unit || "", price: +l.price || 0 })) };
 }
 
 // ---------- review ----------
@@ -262,12 +314,12 @@ rep.addEventListener("focusout", (e) => {
 rep.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.closest(".numfield")) { e.preventDefault(); e.target.blur(); } });
 rep.addEventListener("click", (e) => {
   const b = e.target.closest("[data-rm]"); if (!b) return;
-  const [arr, i] = b.dataset.rm.split(".");
+  const parts = b.dataset.rm.split("."), i = +parts.pop(), arr = parts.join(".");
   if (arr === "findings") {
     const n = +i + 1; // keep DIY references pointing at the right photos
-    state.model.diy.forEach((d) => (d.findings = (d.findings || []).filter((x) => x !== n).map((x) => (x > n ? x - 1 : x))));
+    (state.model.diy.phases || []).forEach((ph) => (ph.items || []).forEach((d) => (d.findings = (d.findings || []).filter((x) => x !== n).map((x) => (x > n ? x - 1 : x)))));
   }
-  state.model[arr].splice(+i, 1); markDirty();
+  getPath(state.model, arr).splice(i, 1); markDirty();
   const y = window.scrollY; draw(); window.scrollTo(0, y);
 });
 $("rvMargin").addEventListener("change", () => { state.model.margin.include = $("rvMargin").checked; draw(); markDirty(); });
@@ -280,7 +332,7 @@ $("pdfBtn").addEventListener("click", () => {
 $("newBtn").addEventListener("click", () => {
   if (!confirmLeave()) return;
   state.model = null; state.videos = []; state.photos = []; listFiles("videos"); listFiles("photos");
-  ["address", "client", "clientPhone", "clientEmail", "notes"].forEach((k) => ($(k).value = "")); document.querySelectorAll("#roofTypes input").forEach((i) => (i.checked = false));
+  state.work = []; listFiles("work"); ["address", "client", "clientPhone", "clientEmail", "notes"].forEach((k) => ($(k).value = "")); document.querySelectorAll("#roofTypes input").forEach((i) => (i.checked = false));
   show("form");
 });
 function confirmLeave() { if (state.user && !state.dirty) return true; return window.confirm ? window.confirm("Start a new report? This one will be cleared unless you've shared or downloaded it.") : true; }

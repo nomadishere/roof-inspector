@@ -110,3 +110,18 @@
   .report .rm{display:none!important}
   .report [contenteditable]{outline:none!important;background:none!important}
 }
+
+/* ---- VFW-package sections ---- */
+.report table.prop td:first-child{width:1.55in;font-weight:bold;color:var(--brand);background:var(--tint)!important}
+.report table.prop td{border-bottom:1px solid #fff}
+.report .warn{background:#FFF7E6;border-left:4px solid #B7791F;padding:.12in .16in;font-size:9pt;margin-top:.14in}
+.report .warn h5{color:#8a5a12;margin:0 0 .05in;font-size:10.5pt}
+.report .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.16in;margin-top:.06in}
+.report .grid3 .ph{width:100%;height:4.1in;object-fit:cover;display:block}
+.report .grid3 .caption{font-size:8.5pt}
+.report .grid2.tall .ph{height:3.6in}
+.report .refs .ref{display:grid;grid-template-columns:.5in 1fr auto;gap:.15in;align-items:center;padding:.12in 0;border-bottom:1px solid var(--rule)}
+.report .refs .n{color:var(--brand);font-weight:bold;font-size:13pt}
+.report .refs .ph2{font-weight:bold;color:var(--brand)}
+.report .item p{margin:.03in 0 .05in}
+.report h5{margin:.08in 0 .02in;font-size:9.5pt}

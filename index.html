@@ -78,7 +78,11 @@
         <label>Brand color <span class="colorRow"><input id="color" type="color" value="#16603A"><input id="colorHex" value="#16603A" maxlength="7" aria-label="Brand color hex"></span></label>
         <label>Font <select id="font"></select></label>
       </div>
-      <div class="lbl">References <span class="hint">optional — adds a Client References page</span></div>
+      <label>About your company <span class="hint">optional — adds an "Our Work" page</span>
+        <textarea id="about" rows="3" placeholder="e.g. Licensed Livingston roofing contractor, 20+ years, commercial and residential. We document every stage with photos."></textarea></label>
+      <label class="drop small" for="workPhotos"><span class="drop-t">Add photos of your past work (optional)</span><input id="workPhotos" type="file" accept="image/*" multiple></label>
+      <ul class="files" id="workList"></ul>
+      <div class="lbl">References <span class="hint">optional — one per line: Name | role or property | phone</span></div>
       <textarea id="references" rows="2" aria-label="References" placeholder="Name, property, phone — one per line"></textarea>
     </fieldset>
 
@@ -139,7 +143,7 @@
 <main id="step-work" class="wrap" hidden>
   <section class="card work">
     <h2>Building your report…</h2>
-    <p class="hint">This usually takes 1–3 minutes. Keep this page open.</p>
+    <p class="hint">A full report takes about 3–8 minutes, depending on video length. Keep this page open.</p>
     <ol class="steps" id="steps"></ol>
     <div class="err" id="workErr" role="alert"></div>
     <button class="btn" id="backBtn" type="button" hidden>Back to the form</button>

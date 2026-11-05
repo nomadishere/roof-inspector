@@ -1,9 +1,12 @@
-// Builds the report pages (Lucky Line package layout) from the report model.
+// Builds the report package pages, following the Lucky Line VFW Roof Package (35 pages, Oct 2026) section for section.
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const money = (n) => "$" + (Math.round(Number(n) || 0)).toLocaleString("en-US");
 const money2 = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const sevClass = (s) => ({ critical: "critical", high: "high", medium: "medium", low: "low" }[String(s).toLowerCase()] || "medium");
-const diffClass = (d) => ({ easy: "easy", moderate: "medium", advanced: "high", "pro only": "critical" }[String(d).toLowerCase()] || "medium");
+const diffClass = (d) => ({ easy: "easy", moderate: "medium", advanced: "high", "pro only": "critical" }[String(d).toLowerCase().split(" /")[0]] || "medium");
+const SEV = ["Critical", "High", "Medium", "Low"];
+const arr = (x) => (Array.isArray(x) ? x : x ? [x] : []);
+const pn = (n) => String(n).padStart(2, "0");
 
 function hexToRgb(h) { h = String(h).replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16) || 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function mix(hex, withRgb, amt) { const a = hexToRgb(hex); return "rgb(" + a.map((v, i) => Math.round(v * (1 - amt) + withRgb[i] * amt)).join(",") + ")"; }
@@ -21,136 +24,200 @@ export function optionTotals(opt, margin) {
   return { mat, lab, sub, op, total: sub + op };
 }
 
+export function parseRefs(text) {
+  return String(text || "").split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    const parts = l.split(/\s*[|,–—]\s*|\s+-\s+/).filter(Boolean);
+    const phone = parts.find((p) => /\d{3}.*\d{4}/.test(p)) || "";
+    const rest = parts.filter((p) => p !== phone);
+    return { name: rest[0] || l, role: rest.slice(1).join(", "), phone };
+  });
+}
+
 export function render(m, { editable = true } = {}) {
   const E = (path, html, tag = "span", cls = "") =>
     `<${tag}${cls ? ` class="${cls}"` : ""}${editable ? ` contenteditable="true" data-k="${path}"` : ""}>${html}</${tag}>`;
-  const b = m.brand, j = m.job;
+  const P = (path, list) => arr(list).map((t, i) => E(`${path}.${i}`, esc(t), "p")).join("");
+  const LI = (path, list, tag = "ul") => `<${tag}>${arr(list).map((t, i) => `<li>${E(`${path}.${i}`, esc(t))}</li>`).join("")}</${tag}>`;
+  const b = m.brand, j = m.job, F = m.findings || [], L = m.leaks || [], D = m.diy || {}, G = D.guide || {};
   const company = b.company || "Your Company";
   const footLeft = [b.tagline, b.phone, b.website].filter(Boolean).map(esc).join(" &nbsp;|&nbsp; ");
-  const pages = []; // {section, html, toc?}
   const roofIcon = `<svg width="30" height="16" viewBox="0 0 30 16" aria-hidden="true"><path d="M1 9 L15 2 L29 9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="7" y1="14" x2="23" y2="14" stroke="currentColor" stroke-width="2"/></svg>`;
-  const findings = m.findings || [];
+  const pages = []; // {section, toc:[title, desc]|null, html()}
+  const add = (section, html, toc = null) => pages.push({ section, html, toc });
+  const preparedBy = [b.preparedBy, company].filter(Boolean).join(", ");
+  const photoCap = (f, n, path, extra = "") => `<div class="caption"><span class="lbl">Photo ${pn(n)}</span>${E(`${path}.title`, esc(f.title), "b")}
+      <div class="meta">${esc(f.category)} | ${esc(f.timeLabel)} | <span class="${sevClass(f.severity)}">${esc(f.severity)}</span></div>${E(`${path}.description`, esc(f.description), "div")}${extra}</div>`;
 
-  // ----- Note from us + contents (contents filled after pagination)
-  pages.push({ section: "A Note From Us", toc: null, html: () => `
+  // ----- 2. Note + contents
+  const note = m.note || {};
+  add("Welcome", () => `
     <h2 class="title">A Note From Us</h2>
-    ${E("note", esc(m.note).replace(/\n/g, "<br>"), "div")}
-    <div class="note-sign">With gratitude,<br><b>${esc(b.preparedBy || company)}</b><br><span class="sub">${esc(company)}</span></div>
-    <h3 style="margin-top:.32in">What's Inside</h3>
-    <div class="toc">${tocHtml()}</div>` });
+    ${E("note.salutation", esc(note.salutation || (j.client ? j.client.split(/[ —-]/)[0] + "," : "Hello,")), "p")}
+    ${P("note.body", note.body)}
+    <div class="note-sign">${E("note.signoff", esc(note.signoff || "With gratitude,"))}<br><b>${esc(b.preparedBy || company)}</b><br><span class="sub">${esc(company)}</span></div>
+    <h3 style="margin-top:.3in">What's Inside</h3>
+    <div class="toc">${tocHtml()}</div>`);
 
-  // ----- Inspection report summary
-  const atGlance = findings.map((f, i) => `<tr><td>${i + 1}</td><td>${esc(f.title)}</td><td>${esc(f.category)}</td><td class="${sevClass(f.severity)}">${esc(f.severity)}</td><td>${esc(f.timeLabel)}</td></tr>`).join("");
-  pages.push({ section: "Roof Inspection Report", toc: ["Roof Inspection Report", "Summary, roof facts and findings at a glance"], html: () => `
-    <h2 class="title">Roof Inspection Report</h2>
-    <div class="sub">${esc(j.address)}${j.date ? " · Inspected " + esc(j.date) : ""}</div>
-    <h3>Executive Summary</h3>
-    ${E("summary", esc(m.summary), "p")}
-    <div class="facts">${(m.facts || []).slice(0, 6).map((f, i) => `<div><b>${esc(f.label)}</b>${E(`facts.${i}.value`, esc(f.value))}</div>`).join("")}</div>
+  // ----- 3. Our Work
+  const work = m.workPhotos || [];
+  if ((b.about || "").trim() || work.length) {
+    for (let i = 0; i < Math.max(1, Math.ceil(work.length / 4)); i++) {
+      const chunk = work.slice(i * 4, i * 4 + 4);
+      add("Our Work", () => `${i === 0 ? `<h2 class="title">Our Work</h2>${E("brand.about", esc(b.about || ""), "p")}` : `<h3>Project Photos</h3>`}
+        <div class="grid2">${chunk.map((w, k) => `<div><img class="ph" src="${w.img}" alt=""><div class="caption"><span class="lbl">Photo ${String.fromCharCode(65 + i * 4 + k)}</span>${E(`workPhotos.${i * 4 + k}.caption`, esc(w.caption || ""))}</div></div>`).join("")}</div>`,
+        i === 0 ? ["Our Work", "How we work, with project photos"] : null);
+    }
+  }
+
+  // ----- 4. Client references
+  const refs = m.refs || parseRefs(m.references);
+  if (refs.length) add("Client References", () => `
+    <h2 class="title">Client References</h2><p class="sub">Connect with clients about their experience with ${esc(company)}.</p>
+    <div class="refs">${refs.map((r, i) => `<div class="ref"><span class="n">${pn(i + 1)}</span><span><b>${esc(r.name)}</b><br><span class="sub">${esc(r.role)}</span></span><span class="ph2">${esc(r.phone)}</span></div>`).join("")}</div>`,
+    ["Client References", "Past clients you can call about their experience with us"]);
+
+  // ----- 5. DIY Roof Repair Plan
+  const phases = (D.phases || []).filter((p) => (p.items || []).length);
+  if (phases.length || G.intro) {
+    add("DIY Roof Repair Plan", () => `
+      <h2 class="title">DIY Roof Repair Plan</h2>
+      <p class="sub">A free, step-by-step guide to repairing the roof yourself or with a helper you trust</p>
+      <h3>How to Use This Plan</h3>${E("diy.guide.intro", esc(G.intro || ""), "p")}
+      <table><tr><th>Phase</th><th>What it covers</th><th>When</th></tr>
+      ${(m.phases || []).map((p, i) => `<tr><td><b>${esc(p.name)}</b></td><td>${E(`phases.${i}.covers`, esc(p.covers))}</td><td>${E(`phases.${i}.when`, esc(p.when))}</td></tr>`).join("")}</table>
+      ${arr(G.safety).length ? `<div class="warn"><h5>Before You Start: Safety First</h5>${LI("diy.guide.safety", G.safety)}</div>` : ""}`,
+      ["DIY Roof Repair Plan", "Free step-by-step guide to repairing the roof yourself or with a helper"]);
+    if (G.material_rule || G.weather_window) add("DIY Roof Repair Plan", () => `
+      ${G.material_rule ? `<h3>${esc(G.material_rule.title || "The Most Important Material Rule")}</h3>${P("diy.guide.material_rule.paragraphs", G.material_rule.paragraphs)}` : ""}
+      ${G.weather_window ? `<h3>Weather Window</h3>${E("diy.guide.weather_window", esc(G.weather_window), "p")}` : ""}
+      ${G.basic_method ? `<h3>${esc(G.basic_method.title || "The Basic Method")}</h3>${E("diy.guide.basic_method.intro", esc(G.basic_method.intro || ""), "p")}
+        <h5>What you'll need</h5>${LI("diy.guide.basic_method.need", G.basic_method.need)}<h5>Steps</h5>${LI("diy.guide.basic_method.steps", G.basic_method.steps, "ol")}` : ""}`);
+    if (arr(G.shopping_list).length) add("DIY Roof Repair Plan", () => `
+      <h3>Shopping List</h3><p class="sub">Quantities are rough. Buy a little extra of anything you are not sure about.</p>
+      <table><tr><th>Item</th><th>Used for</th><th>Approx. quantity</th></tr>
+      ${G.shopping_list.map((s, i) => `<tr><td>${E(`diy.guide.shopping_list.${i}.item`, esc(s.item))}</td><td>${E(`diy.guide.shopping_list.${i}.used_for`, esc(s.used_for))}</td><td>${E(`diy.guide.shopping_list.${i}.qty`, esc(s.qty))}</td></tr>`).join("")}</table>`);
+    phases.forEach((ph, pi) => {
+      for (let i = 0; i < ph.items.length; i += 2) {
+        add("DIY Roof Repair Plan", () => `${i === 0 ? `<h3>${esc(ph.name)}</h3>` : ""}
+          ${ph.items.slice(i, i + 2).map((d, k) => { const n = i + k, path = `diy.phases.${D.phases.indexOf(ph)}.items.${n}`; const ref = arr(d.findings)[0]; const f = F[ref - 1];
+            return `<div class="item">
+              ${editable ? `<button class="rm" data-rm="${path}" type="button">Remove</button>` : ""}
+              <div>${f ? `<img class="ph" src="${f.img}" alt=""><div class="mini">#${ref} Report photo</div>` : ""}</div>
+              <div>${E(`${path}.title`, esc(d.title), "h4")}
+                <div class="sub">Report findings ${arr(d.findings).map((x) => "#" + x).join(", ") || "—"} | Difficulty: <span class="${diffClass(d.difficulty)}">${esc(d.difficulty)}</span></div>
+                ${E(`${path}.why`, esc(d.why || ""), "p")}
+                <h5>What you'll need</h5>${LI(`${path}.need`, d.need)}
+                <h5>Steps</h5>${LI(`${path}.steps`, d.steps, "ol")}
+                <div><span class="callpro">Call a pro if:</span> ${E(`${path}.call_pro_if`, esc(d.call_pro_if))}</div></div></div>`; }).join("")}`);
+      }
+    });
+    add("DIY Roof Repair Plan", () => `
+      ${arr(G.maintenance).length ? `<h3>Keeping It Healthy</h3>${LI("diy.guide.maintenance", G.maintenance)}` : ""}
+      ${arr(G.winter).length ? `<h3>If Winter Arrives Before You Finish</h3>${LI("diy.guide.winter", G.winter)}` : ""}
+      ${G.call_pro ? `<h3>Know When to Call a Pro</h3>${E("diy.guide.call_pro", esc(G.call_pro), "p")}` : ""}
+      <div class="box" style="margin-top:.18in"><h5>We are always just a phone call away.</h5>Whether you hire us, someone else, or do it yourself, if you have a question about a product, a step, or something you find up there, call or email. We are happy to help, and it will not cost you a thing.<br><b>${[company, b.phone, b.email].filter(Boolean).map(esc).join(" | ")}</b></div>
+      ${G.disclaimer ? `<p class="sub" style="margin-top:.14in">${E("diy.guide.disclaimer", esc(G.disclaimer))}</p>` : ""}`);
+  }
+
+  // ----- 6. Interior Leak Inspection Report
+  if (L.length) {
+    add("Interior Leak Inspection Report", () => `
+      <h2 class="title">Interior Leak Inspection Report</h2><p class="sub">Photo documentation of ceiling water damage</p>
+      <table class="prop"><tr><td>Property</td><td>${esc(j.address)}</td></tr><tr><td>Source</td><td>${esc(m.source || "Walkthrough video")}</td></tr><tr><td>Prepared by</td><td>${esc(preparedBy)}</td></tr><tr><td>Locations identified</td><td>${L.length}</td></tr></table>
+      <h3>Executive Summary</h3>${E("leak_summary", esc(m.leak_summary || ""), "p")}
+      <h3>Leak Locations</h3><table><tr><th>#</th><th>Location</th><th>Video</th><th>Condition</th></tr>
+      ${L.map((l, i) => `<tr><td>${i + 1}</td><td>${E(`leaks.${i}.location`, esc(l.location))}</td><td>${esc(l.timeLabel)}</td><td>${E(`leaks.${i}.condition`, esc(l.condition || ""))}</td></tr>`).join("")}</table>`,
+      ["Interior Leak Inspection Report", `${L.length} water-stained ceiling location${L.length === 1 ? "" : "s"}`]);
+    for (let i = 0; i < L.length; i += 2) {
+      const last = i + 2 >= L.length;
+      add("Interior Leak Inspection Report", () => `${i === 0 ? `<h3>Photo Documentation</h3>` : ""}<div class="grid2 tall">${L.slice(i, i + 2).map((l, k) => { const n = i + k; return `<div class="finding">
+        <img class="ph" src="${l.img}" alt=""><div class="caption"><span class="lbl">Photo ${pn(n + 1)}</span><b>${esc(l.location)}</b> <span class="meta">(${esc(l.timeLabel)})</span>
+        <div><b>Observed:</b> ${E(`leaks.${n}.observed`, esc(l.observed || ""))}</div><div><b>Significance:</b> ${E(`leaks.${n}.significance`, esc(l.significance || ""))}</div></div></div>`; }).join("")}</div>
+        ${last && arr(m.leak_next_steps).length ? `<h3>Recommended Next Steps</h3>${LI("leak_next_steps", m.leak_next_steps)}` : ""}`);
+    }
+  }
+
+  // ----- 7. Roof Inspection Report
+  const cats = [...new Set(F.map((f) => f.category || "Other"))];
+  const cnt = (c, s) => F.filter((f) => (f.category || "Other") === c && (!s || String(f.severity).toLowerCase() === s.toLowerCase())).length;
+  add("Roof Inspection Report", () => `
+    <h2 class="title">Roof Inspection Report</h2><p class="sub">Photo documentation of all potential leak points on the roof</p>
+    <table class="prop"><tr><td>Property</td><td>${esc(j.address)}</td></tr><tr><td>Roof system</td><td>${E("roof_system", esc(m.roof_system || ""))}</td></tr>
+      <tr><td>Source</td><td>${esc(m.source || "Walkthrough video")}${j.date ? ", reviewed " + esc(j.date) : ""}</td></tr>
+      ${L.length ? `<tr><td>Related report</td><td>Interior Leak Inspection Report (${L.length} ceiling leak location${L.length === 1 ? "" : "s"})</td></tr>` : ""}
+      <tr><td>Prepared by</td><td>${esc(preparedBy)}</td></tr></table>
+    <h3>Executive Summary</h3>${P("summary", m.summary)}
     <h3>Findings at a Glance</h3>
-    ${findings.length ? `<table><tr><th>#</th><th>Finding</th><th>Area</th><th>Priority</th><th>Source</th></tr>${atGlance}</table>` : `<p>No significant problems were visible in the footage provided.</p>`}` });
+    <table><tr><th>Category</th>${SEV.map((s) => `<th class="num">${s}</th>`).join("")}<th class="num">Total</th></tr>
+      ${cats.map((c) => `<tr><td>${esc(c)}</td>${SEV.map((s) => `<td class="num">${cnt(c, s) || ""}</td>`).join("")}<td class="num"><b>${cnt(c)}</b></td></tr>`).join("")}
+      <tr class="subt"><td>Total</td>${SEV.map((s) => `<td class="num">${F.filter((f) => String(f.severity).toLowerCase() === s.toLowerCase()).length || ""}</td>`).join("")}<td class="num">${F.length}</td></tr></table>
+    <p class="sub"><span class="critical">Critical</span>: open to water now, likely active leak. <span class="high">High</span>: likely leak source, fix soon. <span class="medium">Medium</span>: wear to fix in the normal course. <span class="low">Low</span>: minor, monitor.</p>`,
+    ["Roof Inspection Report", `${F.length} potential leak point${F.length === 1 ? "" : "s"} on the roof, circled and rated by priority`]);
+  for (let i = 0; i < F.length; i += 30) add("Roof Inspection Report", () => `<h3>Findings Index</h3>
+    <table><tr><th>#</th><th>Finding</th><th>Category</th><th>Priority</th><th>Video</th></tr>
+    ${F.slice(i, i + 30).map((f, k) => `<tr><td>${i + k + 1}</td><td>${esc(f.title)}</td><td>${esc(f.category)}</td><td class="${sevClass(f.severity)}">${esc(f.severity)}</td><td>${esc(f.timeLabel)}</td></tr>`).join("")}</table>`);
+  for (let i = 0; i < F.length; i += 3) add("Roof Inspection Report", () => `${i === 0 ? `<h3>Photo Documentation</h3>` : ""}
+    <div class="grid3">${F.slice(i, i + 3).map((f, k) => { const n = i + k; return `<div class="finding">${editable ? `<button class="rm" data-rm="findings.${n}" type="button">Remove</button>` : ""}<img class="ph" src="${f.img}" alt="">${photoCap(f, n + 1, `findings.${n}`)}</div>`; }).join("")}</div>`);
+  if (arr(m.limitations).length) add("Roof Inspection Report", () => `<h3>Limitations and Further Verification</h3>
+    <p>This report is based on a walkthrough video. It documents conditions visible on camera and does not include moisture testing, core samples, measurements or a hands-on inspection. Before final pricing or repair work, we recommend:</p>${LI("limitations", m.limitations)}`);
 
-  // ----- Photo documentation: 2 per page
-  for (let i = 0; i < findings.length; i += 2) {
-    const chunk = findings.slice(i, i + 2);
-    pages.push({ section: "Photo Documentation", toc: i === 0 ? ["Photo Documentation", "Each problem, circled and captioned"] : null, html: () => `
-      ${i === 0 ? `<h2 class="title">Photo Documentation</h2>` : ""}
-      ${chunk.map((f, k) => { const n = i + k; return `
-        <div class="finding">
-          ${editable ? `<button class="rm" data-rm="findings.${n}" type="button">Remove</button>` : ""}
-          <img class="ph" src="${f.img}" alt="">
-          <div class="caption"><span class="lbl">Photo ${String(n + 1).padStart(2, "0")}</span>${E(`findings.${n}.title`, esc(f.title), "b")}
-            <div class="meta">${esc(f.category)} | ${esc(f.timeLabel)} | <span class="${sevClass(f.severity)}">${esc(f.severity)}</span></div>
-            ${E(`findings.${n}.description`, esc(f.description), "div")}</div>
-        </div>`; }).join("")}` });
-  }
-
-  // ----- Interior leak report
-  const leaks = m.leaks || [];
-  if (leaks.length) {
-    pages.push({ section: "Interior Leak Report", toc: ["Interior Leak Report", "Water evidence inside the building"], html: () => `
-      <h2 class="title">Interior Leak Report</h2>
-      <table><tr><th>#</th><th>Location</th><th>Source</th><th>Condition</th></tr>
-      ${leaks.map((l, i) => `<tr><td>${i + 1}</td><td>${E(`leaks.${i}.location`, esc(l.location))}</td><td>${esc(l.timeLabel)}</td><td>${E(`leaks.${i}.condition`, esc(l.condition))}</td></tr>`).join("")}</table>
-      <div class="grid2">${leaks.slice(0, 4).filter((l) => l.img).map((l, i) => `<div><img class="ph" src="${l.img}" alt=""><div class="caption"><span class="lbl">Leak ${i + 1}</span>${esc(l.location)}</div></div>`).join("")}</div>` });
-  }
-
-  // ----- DIY repair plan: 2 per page
-  const diy = m.diy || [];
-  for (let i = 0; i < diy.length; i += 2) {
-    pages.push({ section: "DIY Repair Plan", toc: i === 0 ? ["DIY Repair Plan", "Step-by-step fixes you can use with anyone"] : null, html: () => `
-      ${i === 0 ? `<h2 class="title">DIY Repair Plan</h2><p class="sub">You're welcome to use this plan with any contractor, or do the work yourself if it's safe to.</p>` : ""}
-      ${diy.slice(i, i + 2).map((d, k) => { const n = i + k; const ref = (d.findings || [])[0]; const f = findings[ref - 1];
-        return `<div class="item">
-          ${editable ? `<button class="rm" data-rm="diy.${n}" type="button">Remove</button>` : ""}
-          <div>${f ? `<img class="ph" src="${f.img}" alt=""><div class="mini">#${ref} Report photo</div>` : ""}</div>
-          <div>
-            ${E(`diy.${n}.title`, esc(d.title), "h4")}
-            <div class="sub">Report findings ${(d.findings || []).map((x) => "#" + x).join(", ") || "—"} | Difficulty: <span class="${diffClass(d.difficulty)}">${esc(d.difficulty)}</span></div>
-            <h5>What you'll need</h5><ul>${(d.need || []).map((x, q) => `<li>${E(`diy.${n}.need.${q}`, esc(x))}</li>`).join("")}</ul>
-            <h5>Steps</h5><ol>${(d.steps || []).map((x, q) => `<li>${E(`diy.${n}.steps.${q}`, esc(x))}</li>`).join("")}</ol>
-            <div><span class="callpro">Call a pro if:</span> ${E(`diy.${n}.call_pro_if`, esc(d.call_pro_if))}</div>
-          </div></div>`; }).join("")}` });
-  }
-
-  // ----- Estimates: one page per option
+  // ----- 8. Recommendation & Proposals (one block per roof type)
   const ests = m.estimates || [];
   const allOpts = [];
-  ests.forEach((est, ei) => (est.options || []).forEach((opt, oi) => allOpts.push({ est, ei, opt, oi })));
-  allOpts.forEach(({ est, ei, opt, oi }, idx) => {
-    const t = optionTotals(opt, m.margin);
-    const rows = (opt.lines || []).map((l, li) => `<tr>
-      <td><span class="tag">${l.kind === "Labor" ? "LABOR" : "MAT"}</span> ${E(`estimates.${ei}.options.${oi}.lines.${li}.desc`, esc(l.desc))}</td>
-      <td class="num">${E(`estimates.${ei}.options.${oi}.lines.${li}.qty`, esc(l.qty), "span", "numfield")} ${esc(l.unit)}</td>
-      <td class="num">${E(`estimates.${ei}.options.${oi}.lines.${li}.price`, money2(l.price), "span", "numfield")}</td>
-      <td class="num">${money((Number(l.qty) || 0) * (Number(l.price) || 0))}</td></tr>`).join("");
-    pages.push({ section: m.margin.include ? "Estimate" : "Cost Breakdown", toc: idx === 0 ? [m.margin.include ? "Estimate & Options" : "Cost Breakdown", m.margin.include ? "Repair and replacement pricing" : "Materials and labor, before overhead and profit"] : null, html: () => `
-      ${idx === 0 ? `<h2 class="title">${m.margin.include ? "Estimate & Options" : "Cost Breakdown"}</h2>
-        ${m.margin.include ? "" : `<p class="sub">Technical breakdown of materials and labor at typical cost, before any contractor overhead or profit.</p>`}` : ""}
-      <h3>${E(`estimates.${ei}.options.${oi}.name`, esc(opt.name))}${ests.length > 1 ? ` <span class="sub">(${esc(est.roofType)})</span>` : ""}</h3>
-      ${E(`estimates.${ei}.options.${oi}.scope`, esc(opt.scope), "p")}
-      <table><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr>${rows}
-        <tr class="subt"><td colspan="3">Materials</td><td class="num">${money(t.mat)}</td></tr>
-        <tr class="subt"><td colspan="3">Labor</td><td class="num">${money(t.lab)}</td></tr>
-        ${m.margin.include ? `<tr class="subt"><td colspan="3">Overhead &amp; profit (${Number(m.margin.pct) || 0}%)</td><td class="num">${money(t.op)}</td></tr>` : ""}
-        <tr class="total"><td colspan="3">${m.margin.include ? "TOTAL INVESTMENT" : "TOTAL COST (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr></table>
-      ${oi === 0 && (est.assumptions || []).length ? `<div class="box"><h5>Assumptions</h5><ul>${est.assumptions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></div>` : ""}` });
+  ests.forEach((est, ei) => {
+    const opts = est.options || [];
+    opts.forEach((opt, oi) => allOpts.push({ est, ei, opt, oi }));
+    const label = ests.length > 1 ? ` — ${esc(est.roofType)}` : "";
+    add("Recommendation & Proposals", () => `
+      <h2 class="title">Our Recommendation${label}</h2>
+      ${P(`estimates.${ei}.recommendation`, est.recommendation)}
+      <table><tr><th></th>${opts.map((o) => `<th>${esc(o.name.split(":")[0])}${est.recommended === o.key ? " (Recommended)" : ""}</th>`).join("")}</tr>
+      ${(est.compare_rows || []).map((r, ri) => `<tr><td><b>${esc(r.label)}</b></td><td>${E(`estimates.${ei}.compare_rows.${ri}.a`, esc(r.a))}</td><td>${E(`estimates.${ei}.compare_rows.${ri}.b`, esc(r.b))}</td></tr>`).join("")}
+      <tr class="subt"><td>${m.margin.include ? "Investment" : "Cost (materials + labor)"}</td>${opts.map((o) => `<td>${money(optionTotals(o, m.margin).total)}</td>`).join("")}</tr></table>
+      ${est.quantities_note ? `<div class="box"><b>About the quantities.</b> ${E(`estimates.${ei}.quantities_note`, esc(est.quantities_note))}</div>` : ""}`,
+      ei === 0 ? ["Recommendation & Proposals", opts.map((o) => o.name).join(", ") + ", and acceptance"] : null);
+    opts.forEach((opt, oi) => {
+      const lines = opt.lines || [], per = 16, t = optionTotals(opt, m.margin);
+      for (let s = 0; s < Math.max(1, lines.length); s += per) {
+        const last = s + per >= lines.length;
+        add("Recommendation & Proposals", () => `${s === 0 ? `${E(`estimates.${ei}.options.${oi}.name`, esc(opt.name) + label, "h2", "title")}
+          ${est.recommended === opt.key ? `<p class="easy">Recommended.</p>` : ""}${E(`estimates.${ei}.options.${oi}.subtitle`, esc(opt.subtitle || ""), "p", "sub")}
+          ${E(`estimates.${ei}.options.${oi}.scope`, esc(opt.scope || ""), "p")}<h3>Scope of Work &amp; Pricing</h3>` : `<h3>Scope of Work &amp; Pricing (continued)</h3>`}
+          <table><tr><th>#</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr>
+          ${lines.slice(s, s + per).map((l, k) => { const li = s + k, p = `estimates.${ei}.options.${oi}.lines.${li}`; return `<tr><td>${li + 1}</td>
+            <td><span class="tag">${l.kind === "Labor" ? "LABOR" : "MAT"}</span> ${E(`${p}.desc`, esc(l.desc))}</td>
+            <td class="num">${E(`${p}.qty`, esc(l.qty), "span", "numfield")} ${esc(l.unit)}</td>
+            <td class="num">${E(`${p}.price`, money2(l.price), "span", "numfield")}</td>
+            <td class="num">${money((Number(l.qty) || 0) * (Number(l.price) || 0))}</td></tr>`; }).join("")}
+          ${last ? `<tr class="subt"><td></td><td colspan="3">Materials</td><td class="num">${money(t.mat)}</td></tr>
+            <tr class="subt"><td></td><td colspan="3">Labor</td><td class="num">${money(t.lab)}</td></tr>
+            ${m.margin.include ? `<tr class="subt"><td></td><td colspan="3">Overhead &amp; profit (${Number(m.margin.pct) || 0}%)</td><td class="num">${money(t.op)}</td></tr>` : ""}
+            <tr class="total"><td></td><td colspan="3">${m.margin.include ? "TOTAL INVESTMENT" : "TOTAL COST (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr>` : ""}</table>
+          ${last ? `<div class="cols"><div class="box"><h5>Warranty, Payment &amp; Schedule</h5>
+              ${opt.warranty ? `<p><b>Warranty:</b> ${E(`estimates.${ei}.options.${oi}.warranty`, esc(opt.warranty))}</p>` : ""}
+              <p><b>Payment:</b> ${E(`estimates.${ei}.payment`, esc(est.payment || m.terms || ""))}</p>
+              ${opt.timeline ? `<p><b>Schedule:</b> ${E(`estimates.${ei}.options.${oi}.timeline`, esc(opt.timeline))}</p>` : ""}</div>
+            <div class="box"><h5>Notes &amp; Exclusions</h5>${LI(`estimates.${ei}.exclusions`, [...arr(est.assumptions), ...arr(est.exclusions)])}</div></div>` : ""}`);
+      }
+    });
   });
 
-  // ----- Recommendation + terms
-  if (allOpts.length) {
-    pages.push({ section: "Recommendation", toc: ["Recommendation & Options", "Side-by-side comparison and terms"], html: () => `
-      <h2 class="title">Recommendation &amp; Options</h2>
-      <table><tr><th>Option</th><th>Scope</th><th class="num">${m.margin.include ? "Total" : "Cost"}</th></tr>
-      ${allOpts.map(({ est, opt }) => `<tr><td><b>${esc(opt.name)}</b>${ests.length > 1 ? `<br><span class="sub">${esc(est.roofType)}</span>` : ""}</td><td>${esc(opt.scope)}</td><td class="num">${money(optionTotals(opt, m.margin).total)}</td></tr>`).join("")}</table>
-      ${E("recommendation", esc(m.recommendation), "p")}
-      <div class="cols" style="margin-top:.2in">
-        <div class="box"><h5>Warranty, Payment &amp; Schedule</h5>${E("terms", esc(m.terms).replace(/\n/g, "<br>"), "div")}</div>
-        <div class="box"><h5>Notes &amp; Exclusions</h5>${E("exclusions", esc(m.exclusions).replace(/\n/g, "<br>"), "div")}</div>
-      </div>` });
-    // ----- Acceptance
-    pages.push({ section: "Acceptance", toc: ["Acceptance", "Choose an option and sign"], html: () => `
-      <h2 class="title">Acceptance</h2>
-      <p>Select the option you'd like and sign below. ${esc(company)} will reach out to schedule.</p>
-      <table><tr><th>Select</th><th>Option</th><th class="num">${m.margin.include ? "Total" : "Cost"}</th></tr>
-      ${allOpts.map(({ est, opt }) => `<tr><td><span class="selbox"></span></td><td>${esc(opt.name)}${ests.length > 1 ? " — " + esc(est.roofType) : ""}</td><td class="num">${money(optionTotals(opt, m.margin).total)}</td></tr>`).join("")}</table>
-      <div class="box"><h5>Payment terms</h5>${esc(m.terms).split("\n")[0] || ""}</div>
-      ${j.client || j.clientPhone || j.clientEmail ? `<p class="sub" style="margin-top:.3in">Owner: ${[j.client, j.clientPhone, j.clientEmail].filter(Boolean).map(esc).join(" · ")}</p>` : ""}
-      <div class="sig"><div>Owner signature</div><div>Date</div></div>
-      <div class="sig"><div>${esc(company)}</div><div>Date</div></div>
-      <div style="margin-top:.5in;text-align:center;color:var(--brand)"><b>${esc(company)}</b><br>${[b.preparedBy, b.phone, b.email, b.website].filter(Boolean).map(esc).join(" · ")}</div>` });
-  }
+  // ----- 9. Acceptance
+  if (allOpts.length) add("Acceptance", () => `
+    <h2 class="title">Acceptance</h2><p>Select the option you would like and sign below. ${esc(company)} will reach out to schedule.</p>
+    <table><tr><th>Option</th><th>Description</th><th class="num">${m.margin.include ? "Investment" : "Cost"}</th><th>Select</th></tr>
+    ${allOpts.map(({ est, opt }) => `<tr><td><b>${esc(opt.key || "")}</b></td><td>${esc(opt.name.replace(/^Option [A-Z]:\s*/, ""))}${ests.length > 1 ? " — " + esc(est.roofType) : ""}${est.recommended === opt.key ? " (Recommended)" : ""}</td><td class="num">${money(optionTotals(opt, m.margin).total)}</td><td><span class="selbox"></span></td></tr>`).join("")}</table>
+    <p><b>Payment terms:</b> ${esc((ests[0] && ests[0].payment) || m.terms || "")}</p>
+    <p>By signing below, the owner or authorized representative accepts the selected option, scope and terms above and authorizes ${esc(company)} to proceed. Final quantities are confirmed by field measurement before work begins.</p>
+    ${j.client || j.clientPhone || j.clientEmail ? `<p class="sub">Owner: ${[j.client, j.clientPhone, j.clientEmail].filter(Boolean).map(esc).join(" · ")}</p>` : ""}
+    <div class="sig"><div>Owner / Authorized Representative</div><div>Date</div></div>
+    <div class="sig"><div>Printed Name &amp; Title</div><div></div></div>
+    <div class="sig"><div>${esc(company)}</div><div>Date</div></div>
+    <div class="box" style="margin-top:.35in"><b>${esc(company)}</b><br>${[b.preparedBy, b.phone, b.email, b.website].filter(Boolean).map(esc).join(" · ")}</div>`);
 
-  // ----- References
-  if ((m.references || "").trim()) {
-    pages.push({ section: "Client References", toc: ["Client References", "People we've worked for"], html: () => `
-      <h2 class="title">Client References</h2>${E("references", esc(m.references).replace(/\n/g, "<br>"), "div")}` });
-  }
-
-  // contents: page numbers (cover = 1)
   function tocHtml() {
     let n = 0;
-    return pages.map((p, i) => p.toc ? `<div class="row"><div class="n">${String(++n).padStart(2, "0")}</div><div class="t"><b>${esc(p.toc[0])}</b><span>${esc(p.toc[1])}</span></div><div class="p">${i + 2}</div></div>` : "").join("");
+    return pages.map((p, i) => p.toc ? `<div class="row"><div class="n">${pn(++n)}</div><div class="t"><b>${esc(p.toc[0])}</b><span>${esc(p.toc[1])}</span></div><div class="p">Page ${i + 2}</div></div>` : "").join("");
   }
 
   const cover = `<section class="page cover"><div class="fit">
@@ -158,9 +225,9 @@ export function render(m, { editable = true } = {}) {
     <div class="logo-card">${b.logo ? `<img src="${b.logo}" alt="">` : `<div class="noLogo">${esc(company)}</div>`}</div>
     <div class="hero">${m.cover ? `<img src="${m.cover}" alt="">` : ""}</div>
     <div class="title-card">
-      ${E("coverTitle", esc(m.coverTitle || "Roof Inspection Report"), "h1")}
+      ${E("coverTitle", esc(m.coverTitle || "Roof Report, Repair Plan & Proposals"), "h1")}
       <div class="subtitle">${esc(j.address)}</div>
-      <div class="meta">${j.client || j.clientPhone || j.clientEmail ? "Prepared for: " + [j.client, j.clientPhone, j.clientEmail].filter(Boolean).map(esc).join(" · ") + "<br>" : ""}Prepared by: ${esc([b.preparedBy, company].filter(Boolean).join(", "))}<br>Report date: ${esc(j.date)}</div>
+      <div class="meta">${j.client || j.clientPhone || j.clientEmail ? "Prepared for: " + [j.client, j.clientPhone, j.clientEmail].filter(Boolean).map(esc).join(" · ") + "<br>" : ""}Prepared by: ${esc(preparedBy)}<br>Report date: ${esc(j.date)}</div>
       ${b.tagline ? `<div class="tagline">${esc(b.tagline)}</div>` : ""}
     </div>
     <div class="side-contact">${[b.website, b.phone, b.email].filter(Boolean).map(esc).join("<br>")}</div>
@@ -181,6 +248,6 @@ export function fitPages(root) {
     const hdr = fit.querySelector(".hdr");
     const avail = fit.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - (hdr ? hdr.offsetHeight + 21 : 0);
     const h = body.scrollHeight;
-    if (h > avail) { const z = Math.max(0.6, avail / h); body.style.zoom = z; body.style.width = (100 / z) + "%"; }
+    if (h > avail) { const z = Math.max(0.55, avail / h); body.style.zoom = z; body.style.width = (100 / z) + "%"; }
   });
 }
