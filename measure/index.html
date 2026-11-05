@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roofly — free roof measurements from an address</title>
+<meta name="description" content="Type an address. Get roof squares, pitch, edge lengths and a materials list from aerial imagery. Free.">
+<link rel="icon" href="../brand/roofly-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+.res{display:grid;gap:14px}
+.photo{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#e9ecea}
+.photo canvas{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:22px;height:8px;border-radius:2px;border:1px solid #0003;display:inline-block}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media (min-width:620px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:#f4f7fb;border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font-size:22px;color:#0B2545}
+.kpi span{font-size:12px;color:var(--muted)}
+table.t{width:100%;border-collapse:collapse;font-size:15px}
+table.t th{text-align:left;font-size:12px;color:var(--muted);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--line)}
+table.t td{padding:7px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.t td.n{text-align:right;font-weight:700;white-space:nowrap}
+table.t input{width:92px!important;display:inline-block!important;margin:0!important;padding:7px 8px!important;text-align:right}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.note{font-size:13px;color:var(--muted);line-height:1.45}
+.bar{display:flex;flex-wrap:wrap;gap:8px}
+.bar .btn{flex:1 1 160px}
+.err{color:var(--err);font-weight:600}
+.spin{display:inline-block;width:18px;height:18px;border:2.5px solid #c9d8ea;border-top-color:#0B2545;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.printhead{display:none}
+@media print{
+  .topbar,.noprint,#form{display:none!important}
+  body{background:#fff}
+  .card{border:0;padding:0;break-inside:avoid}
+  .printhead{display:block}
+  .wrap{max-width:none;padding:0}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="logo" href="../" aria-label="Roofly home"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><path d="M14 54 L50 22 L86 54" fill="none" stroke="currentColor" stroke-width="11" stroke-linejoin="miter"/><rect x="30" y="68" width="40" height="11" fill="currentColor"/></svg><span>Roofly</span></a>
+  <a class="btn small" href="../">Inspection report</a>
+</header>
+<main class="wrap">
+  <section class="hero-copy noprint">
+    <h1>Roof measurements from an address.</h1>
+    <p>Squares, pitch, every edge in feet and a materials list, from aerial imagery. Free.</p>
+  </section>
+
+  <form id="form" class="card" novalidate>
+    <label>Property address <input id="addr" autocomplete="street-address" placeholder="123 Main St, Livingston, MT" required></label>
+    <div class="row2">
+      <label>Roof system for materials
+        <select id="sys"><option value="auto">Pick for me</option><option value="shingle">Asphalt shingles</option><option value="metal">Metal</option><option value="lowslope">EPDM / low-slope membrane</option></select></label>
+      <label>Waste
+        <select id="waste"><option value="auto">Pick for me</option><option>5</option><option>10</option><option>12</option><option>15</option><option>20</option></select></label>
+    </div>
+    <p id="err" class="err" role="alert"></p>
+    <button class="btn primary" id="go" type="submit" style="width:100%;margin-top:6px">Measure this roof</button>
+    <p class="note" id="status" style="margin:10px 0 0"></p>
+  </form>
+
+  <div id="out" class="res" hidden>
+    <section class="card">
+      <div class="printhead"><h2 style="margin:0 0 4px;color:#0B2545">Roof Measurement Report</h2></div>
+      <h2 id="rAddr" style="margin:0 0 2px;font-size:20px"></h2>
+      <p class="note" id="rMeta" style="margin:0 0 12px"></p>
+      <div class="photo"><canvas id="cv" width="1100" height="900" aria-label="Aerial photo with roof edges traced"></canvas></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 10px">Summary</h3>
+      <div class="kpis" id="kpis"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 4px">Edge lengths</h3>
+      <p class="note noprint" style="margin:0 0 8px">Traced from the photo. Tap a number to correct it; the materials update.</p>
+      <table class="t" id="edges"></table>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 4px">Materials</h3>
+      <p class="note" id="matNote" style="margin:0 0 8px"></p>
+      <table class="t" id="mats"></table>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 8px">Roof faces</h3>
+      <table class="t" id="faces"></table>
+      <p class="note" id="aiNote" style="margin:10px 0 0"></p>
+      <p class="note" style="margin:6px 0 0">Measured from aerial imagery. Field-verify before ordering materials.</p>
+    </section>
+
+    <div class="bar noprint">
+      <button class="btn primary" id="pdf" type="button">Download PDF</button>
+      <button class="btn" id="copy" type="button">Copy summary</button>
+      <button class="btn" id="again" type="button">Measure another</button>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import { FN, SUPABASE_ANON } from "../js/config.js";
+const $ = (id) => document.getElementById(id);
+const COL = { eave: "#2EA84A", rake: "#E67E22", ridge: "#D64541", hip: "#8E44AD", valley: "#2B6FD8", edge: "#16A2B8", parapet: "#FFFFFF", flashing: "#F1C40F" };
+const NAMES = { eave: "Eaves", rake: "Rakes", ridge: "Ridges", hip: "Hips", valley: "Valleys", edge: "Low-slope edges", parapet: "Parapet walls", flashing: "Wall / step flashing" };
+let M = null, LEN = {}, IMG = null;
+
+const p12 = (deg) => 12 * Math.tan((deg * Math.PI) / 180);
+const dirn = (a) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.floor((((a + 22.5) % 360) + 360) % 360 / 45)];
+const fmt = (n, d = 0) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+
+function pitchInfo(m) {
+  const all = m.facets || [], A = all.reduce((s, f) => s + f.areaFt2, 0) || 1;
+  const avg = all.reduce((s, f) => s + f.pitchDeg * f.areaFt2, 0) / A;
+  const steep = all.filter((f) => f.pitchDeg >= 9.5);
+  const sA = steep.reduce((s, f) => s + f.areaFt2, 0);
+  const sp = sA ? steep.reduce((s, f) => s + f.pitchDeg * f.areaFt2, 0) / sA : avg;
+  return { avg, steep: sp, lowShare: 1 - sA / A };
+}
+function lengths(m) {
+  const k = p12(pitchInfo(m).steep) / 12, pf = Math.sqrt(1 + k * k), hf = Math.sqrt(1 + (k * k) / 2), t = {};
+  for (const l of m.edges?.lines || []) {
+    const pl = Math.hypot(l.x2 - l.x1, l.y2 - l.y1) * m.ftPerPx;
+    const len = pl * (l.type === "rake" ? pf : l.type === "hip" || l.type === "valley" ? hf : 1);
+    t[l.type] = (t[l.type] || 0) + len; l._len = len;
+  }
+  for (const x in t) t[x] = Math.round(t[x]);
+  return t;
+}
+function system() {
+  const v = $("sys").value; if (v !== "auto") return v;
+  return pitchInfo(M).lowShare > 0.6 ? "lowslope" : "shingle";
+}
+function waste() {
+  const v = $("waste").value; if (v !== "auto") return +v;
+  if (system() === "lowslope") return 10;
+  return (LEN.hip || 0) + (LEN.valley || 0) > 40 ? 15 : 10;
+}
+const ceil = (x) => Math.max(0, Math.ceil(x - 1e-9));
+
+function materials() {
+  const area = M.roof.areaFt2, w = waste(), sq = area / 100, sqw = sq * (1 + w / 100), sys = system();
+  const e = LEN.eave || 0, r = LEN.rake || 0, ri = LEN.ridge || 0, h = LEN.hip || 0, v = LEN.valley || 0, ed = LEN.edge || 0, pa = LEN.parapet || 0, fl = LEN.flashing || 0;
+  const c = M.edges?.counts || {};
+  const rows = [];
+  if (sys === "lowslope") {
+    rows.push(["EPDM membrane (10' × 100' rolls)", ceil((area * 1.1 + pa * 2) / 1000), "rolls", `${fmt(area * 1.1 + pa * 2)} sq ft incl. 10% laps + 2' up parapets`]);
+    rows.push(["Cover board / insulation (4' × 8')", ceil((area * 1.05) / 32), "sheets", `${fmt(area)} sq ft`]);
+    rows.push(["Bonding adhesive", ceil(area / 60), "gal", "about 60 sq ft per gallon"]);
+    rows.push(["Edge metal / drip edge (10' sticks)", ceil(((ed + e + r) * 1.05) / 10), "pcs", `${fmt(ed + e + r)} ft of edge + 5%`]);
+    if (pa) rows.push(["Parapet coping / termination bar", ceil((pa * 1.05) / 10), "pcs (10')", `${fmt(pa)} ft`]);
+    if (fl) rows.push(["Wall flashing (membrane + termination bar)", fmt(fl), "ft", "where the roof meets taller walls"]);
+    rows.push(["Seam tape (3\" × 100')", ceil((area / 100) * 10 / 100) || 1, "rolls", "rough: ~10 ft of seam per square"]);
+    rows.push(["Pipe boots / pourable sealer pockets", (c.vents || 0) + (c.hvac || 0), "ea", "vents + equipment seen on the photo (confirm)"]);
+  } else {
+    if (sys === "metal") rows.push(["Metal panels (coverage)", fmt(sqw, 1), "squares", `${fmt(area)} sq ft + ${w}% waste`]);
+    else rows.push(["Shingles (3 bundles per square)", ceil(sqw * 3), "bundles", `${fmt(sqw, 1)} squares incl. ${w}% waste`]);
+    rows.push(["Synthetic underlayment (10-square rolls)", ceil(sqw / 10), "rolls", `${fmt(sqw, 1)} squares`]);
+    rows.push(["Ice & water shield (2-square rolls)", ceil((e * 6 + v * 3) / 200), "rolls", `eaves ${fmt(e)} ft × 6' + valleys ${fmt(v)} ft × 3'`]);
+    rows.push(["Drip edge (10' sticks)", ceil(((e + r) * 1.05) / 10), "pcs", `eaves + rakes ${fmt(e + r)} ft + 5%`]);
+    if (sys !== "metal") rows.push(["Starter strip (~105 ft per bundle)", ceil((e + r) / 105), "bundles", `${fmt(e + r)} ft`]);
+    rows.push([sys === "metal" ? "Ridge / hip cap (10' pcs)" : "Hip & ridge cap (~30 ft per bundle)", sys === "metal" ? ceil(((ri + h) * 1.05) / 10) : ceil((ri + h) / 30), sys === "metal" ? "pcs" : "bundles", `${fmt(ri + h)} ft`]);
+    if (v) rows.push(["Valley metal / W-valley (10' pcs)", ceil((v * 1.05) / 10), "pcs", `${fmt(v)} ft`]);
+    if (fl) rows.push(["Step / wall flashing", fmt(fl), "ft", "where the roof meets walls"]);
+    if (ri) rows.push(["Ridge vent (4' pcs, optional)", ceil(ri / 4), "pcs", `${fmt(ri)} ft of ridge`]);
+    rows.push(["Pipe boots", c.vents || 0, "ea", "vents seen on the photo (confirm)"]);
+    if (sys !== "metal") rows.push(["Coil roofing nails (boxes)", ceil(sqw / 16), "boxes", "about 16 squares per box"]);
+  }
+  return { rows, sq, sqw, w, sys };
+}
+
+function draw() {
+  const cv = $("cv"), ctx = cv.getContext("2d"), L = M.edges?.lines || [];
+  const xs = L.flatMap((l) => [l.x1, l.x2]), ys = L.flatMap((l) => [l.y1, l.y2]);
+  const pad = 70, x0 = Math.max(0, (xs.length ? Math.min(...xs) : 200) - pad), y0 = Math.max(0, (ys.length ? Math.min(...ys) : 200) - pad);
+  const x1 = Math.min(1280, (xs.length ? Math.max(...xs) : 1080) + pad), y1 = Math.min(1280, (ys.length ? Math.max(...ys) : 1080) + pad);
+  const W = 1100, s = W / (x1 - x0); cv.width = W; cv.height = Math.round((y1 - y0) * s);
+  ctx.drawImage(IMG, x0, y0, x1 - x0, y1 - y0, 0, 0, cv.width, cv.height);
+  const P = (x, y) => [(x - x0) * s, (y - y0) * s];
+  for (const pass of [0, 1]) for (const l of L) {
+    const [a, b] = P(l.x1, l.y1), [c, d] = P(l.x2, l.y2);
+    ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.lineCap = "round";
+    ctx.strokeStyle = pass ? COL[l.type] || "#fff" : "#000"; ctx.lineWidth = pass ? 9 : 16; ctx.stroke();
+  }
+  ctx.font = "bold 38px system-ui, Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const l of L) {
+    if ((l._len || 0) < 6) continue;
+    const [a, b] = P((l.x1 + l.x2) / 2, (l.y1 + l.y2) / 2), t = Math.round(l._len) + "'", w = ctx.measureText(t).width;
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(a - w / 2 - 8, b - 24, w + 16, 48, 8); ctx.fill();
+    ctx.fillStyle = "#0B2545"; ctx.fillText(t, a, b + 1);
+  }
+  $("legend").innerHTML = Object.keys(NAMES).filter((t) => LEN[t]).map((t) => `<span><i style="background:${COL[t]}"></i>${NAMES[t]}</span>`).join("");
+}
+
+function render() {
+  const pi = pitchInfo(M), mat = materials();
+  $("rAddr").textContent = M.formatted;
+  const d = M.imageryDate || {};
+  $("rMeta").textContent = `Aerial imagery ${d.month || "?"}/${d.year || "?"} · ${String(M.quality || "").toLowerCase()} quality · ${M.edges?.style || ""}`;
+  const k = [["Roof area", fmt(M.roof.areaFt2) + " sq ft"], ["Squares", fmt(mat.sq, 1)], [`Squares + ${mat.w}% waste`, fmt(mat.sqw, 1)], ["Roof faces", (M.facets || []).length],
+    ["Main pitch", fmt(p12(pi.avg), 1) + "/12"], [pi.lowShare > 0.6 ? "Roof type" : "Steep-slope pitch", pi.lowShare > 0.6 ? "Low-slope" : fmt(p12(pi.steep), 1) + "/12"],
+    [pi.lowShare > 0.6 ? "Roof perimeter" : "Drip edge", fmt((LEN.eave || 0) + (LEN.rake || 0) + (LEN.edge || 0) + (LEN.parapet || 0)) + " ft"], ["Ridges + hips", fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft"]];
+  $("kpis").innerHTML = k.map(([a, b]) => `<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join("");
+  $("edges").innerHTML = `<tr><th>Edge</th><th style="text-align:right">Length (ft)</th></tr>` + Object.keys(NAMES).map((t) =>
+    `<tr><td><span class="sw" style="background:${COL[t]};border:1px solid #0003"></span>${NAMES[t]}</td><td class="n"><input inputmode="decimal" data-t="${t}" value="${LEN[t] || 0}" aria-label="${NAMES[t]} in feet"></td></tr>`).join("");
+  $("mats").innerHTML = `<tr><th>Item</th><th style="text-align:right">Qty</th><th>Unit</th></tr>` + mat.rows.map(([a, q, u, n]) => `<tr><td>${a}<div class="note">${n}</div></td><td class="n">${q}</td><td>${u}</td></tr>`).join("");
+  $("matNote").textContent = { shingle: "Asphalt shingle system.", metal: "Metal roof system.", lowslope: "EPDM / low-slope membrane system." }[mat.sys] + " Quantities are estimates from the aerial measurements.";
+  $("faces").innerHTML = `<tr><th>#</th><th>Pitch</th><th>Faces</th><th style="text-align:right">Area (sq ft)</th></tr>` + (M.facets || []).map((f) =>
+    `<tr><td>${f.n}</td><td>${fmt(p12(f.pitchDeg), 1)}/12 <span class="note">(${Math.round(f.pitchDeg)}°)</span></td><td>${dirn(f.azimuthDeg)}</td><td class="n">${fmt(f.areaFt2)}</td></tr>`).join("");
+  const c = M.edges?.counts || {}, seen = Object.entries(c).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ");
+  $("aiNote").textContent = (seen ? "Seen on the roof: " + seen + ". " : "") + (M.edges?.notes ? "Check: " + M.edges.notes : "");
+  for (const i of document.querySelectorAll("#edges input")) i.addEventListener("input", () => { LEN[i.dataset.t] = Math.max(0, +i.value || 0); const keep = document.activeElement?.dataset.t; renderNoEdges(); });
+  draw();
+  try { localStorage.setItem("roofly.measure.last", JSON.stringify({ address: M.formatted, at: Date.now(), roof: M.roof, LEN, facets: M.facets, sys: mat.sys, waste: mat.w })); } catch {}
+}
+function renderNoEdges() { // update everything except the edge inputs (so typing isn't interrupted)
+  const mat = materials();
+  $("mats").innerHTML = `<tr><th>Item</th><th style="text-align:right">Qty</th><th>Unit</th></tr>` + mat.rows.map(([a, q, u, n]) => `<tr><td>${a}<div class="note">${n}</div></td><td class="n">${q}</td><td>${u}</td></tr>`).join("");
+  const kp = $("kpis").children; if (kp[6]) kp[6].querySelector("b").textContent = fmt((LEN.eave || 0) + (LEN.rake || 0) + (LEN.edge || 0) + (LEN.parapet || 0)) + " ft"; if (kp[7]) kp[7].querySelector("b").textContent = fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft";
+  if (kp[2]) { kp[2].querySelector("b").textContent = fmt(mat.sqw, 1); kp[2].querySelector("span").textContent = `Squares + ${mat.w}% waste`; }
+}
+$("sys").addEventListener("change", () => M && render());
+$("waste").addEventListener("change", () => M && render());
+
+async function measure(address) {
+  $("err").textContent = ""; $("go").disabled = true; $("out").hidden = true;
+  $("status").innerHTML = `<span class="spin"></span>Finding the roof, loading the aerial photo and tracing every edge… about 20 seconds.`;
+  try {
+    const r = await fetch(FN + "ri-measure", { method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON }, body: JSON.stringify({ address }) });
+    const d = await r.json().catch(() => ({ error: "BAD", message: "Something went wrong. Please try again." }));
+    if (d.error) throw new Error(d.message || "Couldn't measure this roof.");
+    M = d; LEN = lengths(M);
+    IMG = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = M.image; });
+    $("status").textContent = ""; $("out").hidden = false; render();
+    $("out").scrollIntoView({ behavior: "smooth", block: "start" });
+    history.replaceState(null, "", "?address=" + encodeURIComponent(address));
+  } catch (e) { $("status").textContent = ""; $("err").textContent = e.message || "Couldn't reach Roofly. Check your connection and try again."; }
+  finally { $("go").disabled = false; }
+}
+$("form").addEventListener("submit", (e) => { e.preventDefault(); const a = $("addr").value.trim(); if (!a) { $("err").textContent = "Enter the property address."; return; } measure(a); });
+$("pdf").addEventListener("click", () => window.print());
+$("again").addEventListener("click", () => { $("out").hidden = true; $("addr").value = ""; $("addr").focus(); window.scrollTo(0, 0); });
+$("copy").addEventListener("click", async () => {
+  const mat = materials();
+  const t = [`Roof measurements — ${M.formatted}`, `Roof area: ${fmt(M.roof.areaFt2)} sq ft (${fmt(mat.sq, 1)} squares; ${fmt(mat.sqw, 1)} with ${mat.w}% waste)`, `Main pitch: ${fmt(p12(pitchInfo(M).avg), 1)}/12 · ${(M.facets || []).length} roof faces`,
+    ...Object.keys(NAMES).filter((k) => LEN[k]).map((k) => `${NAMES[k]}: ${fmt(LEN[k])} ft`), "", "Materials:", ...mat.rows.map(([a, q, u]) => `• ${a}: ${q} ${u}`), "", "Measured from aerial imagery by Roofly (useroofly.com/measure). Field-verify before ordering."].join("\n");
+  try { await navigator.clipboard.writeText(t); $("copy").textContent = "Copied ✓"; setTimeout(() => ($("copy").textContent = "Copy summary"), 2000); } catch { prompt("Copy this:", t); }
+});
+const q = new URLSearchParams(location.search).get("address");
+if (q) { $("addr").value = q; measure(q); }
+</script>
+</body>
+</html>
