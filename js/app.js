@@ -490,3 +490,43 @@ if (resetToken) {
 
 // testing hook
 window.__roofInspector = { state, openReview, draw };
+
+// ---------- keep the form filled in ----------
+// Everything except the videos and the password is remembered on this device, so a failed or
+// repeated run never means typing it all again. Past-work photos are kept in IndexedDB.
+const DRAFT_KEY = "roofly.draft.v1";
+function saveDraft() {
+  const d = { fields: {}, checks: {} };
+  for (const el of $("form").querySelectorAll("input, textarea, select")) {
+    if (el.type === "file" || el.type === "password") continue;
+    const key = el.id || `${el.name}=${el.value}`;
+    if (el.type === "checkbox" || el.type === "radio") d.checks[key] = el.checked;
+    else if (el.id) d.fields[el.id] = el.value;
+  }
+  d.logo = state.logo || "";
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch {}
+}
+function restoreDraft() {
+  let d; try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch {}
+  if (!d) return;
+  for (const el of $("form").querySelectorAll("input, textarea, select")) {
+    if (el.type === "file" || el.type === "password") continue;
+    const key = el.id || `${el.name}=${el.value}`;
+    if (el.type === "checkbox" || el.type === "radio") { if (key in d.checks) el.checked = d.checks[key]; }
+    else if (el.id && el.id !== "date" && el.id in d.fields && d.fields[el.id] !== "") el.value = d.fields[el.id];
+    if (el.type !== "file") el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  if (d.logo) setLogo(d.logo);
+}
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open("roofly", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function idbSet(k, v) { try { const db = await idb(); db.transaction("kv", "readwrite").objectStore("kv").put(v, k); } catch {} }
+async function idbGet(k) { try { const db = await idb(); return await new Promise((res) => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); } catch { return null; } }
+let draftT = null;
+const queueDraft = () => { clearTimeout(draftT); draftT = setTimeout(() => { saveDraft(); idbSet("work", state.work.map((f) => new File([f], f.name, { type: f.type }))); }, 400); };
+$("form").addEventListener("input", queueDraft);
+$("form").addEventListener("change", queueDraft);
+document.addEventListener("click", (e) => { if (e.target.closest(".files button[data-kind='work']")) queueDraft(); });
+const _setLogo = setLogo;
+setLogo = (url) => { _setLogo(url); queueDraft(); };
+restoreDraft();
+idbGet("work").then((w) => { if (Array.isArray(w) && w.length && !state.work.length) { state.work.push(...w); listFiles("work"); } });
