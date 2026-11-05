@@ -98,3 +98,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--g);outline-offse
 .files li .acts{display:flex;gap:4px;flex:none}
 .files li .open{color:var(--g)}
 .files li .meta{display:block;color:var(--muted);font-size:12px}
+
+.wait{display:flex;gap:10px;align-items:flex-start;margin:10px 0 0;padding:12px 14px;border-radius:10px;background:#EEF4FB;color:#0B2545;font-size:14px;line-height:1.4}
+.wait[hidden]{display:none}
+.spin{flex:0 0 18px;width:18px;height:18px;margin-top:1px;border:2.5px solid #C9D8EA;border-top-color:#0B2545;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}

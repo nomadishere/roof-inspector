@@ -32,8 +32,21 @@ function listFiles(kind) {
   ul.innerHTML = state[kind].map((f, i) => `<li><span>${f.name} · ${(f.size / 1048576).toFixed(1)} MB</span><button type="button" data-kind="${kind}" data-i="${i}" aria-label="Remove ${f.name}">Remove</button></li>`).join("");
 }
 $("workPhotos").addEventListener("change", (e) => { state.work.push(...e.target.files); e.target.value = ""; listFiles("work"); });
+// iPhones copy (and sometimes download from iCloud or convert) a video before handing it to the page.
+// That can take a while with no sign of life, so we show a "getting your video" note as soon as they come back.
+let picking = null, pickTimer = null;
+function pickNote(kind, on) {
+  const el = $(kind === "videos" ? "videoWait" : "photoWait"); if (!el) return;
+  el.hidden = !on; clearTimeout(pickTimer);
+  if (on) pickTimer = setTimeout(() => (el.hidden = true), 240000);
+}
+const backFromPicker = () => { if (picking && document.visibilityState === "visible") { const k = picking; setTimeout(() => picking === k && pickNote(k, true), 250); } };
+window.addEventListener("focus", backFromPicker);
+document.addEventListener("visibilitychange", backFromPicker);
 for (const kind of ["videos", "photos"]) {
-  $(kind).addEventListener("change", (e) => { state[kind].push(...e.target.files); e.target.value = ""; listFiles(kind); });
+  $(kind).addEventListener("click", () => { picking = kind; });
+  $(kind).addEventListener("cancel", () => { picking = null; pickNote(kind, false); });
+  $(kind).addEventListener("change", (e) => { picking = null; pickNote(kind, false); state[kind].push(...e.target.files); e.target.value = ""; listFiles(kind); });
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".files button[data-kind]"); if (!b) return;

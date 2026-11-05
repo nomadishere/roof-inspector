@@ -25,12 +25,14 @@
   <form id="form" novalidate>
     <fieldset class="card">
       <legend><span class="stepnum">1</span> Upload the roof</legend>
-      <div class="tip"><b>Best results:</b> one steady walk-around video, or a few short clips. Start with a straight-on shot of the whole building (that becomes your cover). Pause 2–3 seconds on each problem. Recording the owner? Ask first.</div>
+      <div class="tip"><b>Best results:</b> one steady walk-around video, or a few short clips. Start with a straight-on shot of the whole building (that becomes your cover). Pause 2–3 seconds on each problem. After you pick a video, your phone may take a minute to hand it over; that's normal. Recording the owner? Ask first.</div>
       <label class="drop" for="videos"><span class="drop-t">Add video(s)</span><span class="drop-s">MP4 or MOV straight from your phone</span>
         <input id="videos" type="file" accept="video/*" multiple></label>
+      <div class="wait" id="videoWait" hidden role="status"><span class="spin"></span><span><b>Getting your video from your phone…</b> Longer videos, or ones saved in iCloud, can take a minute or two to show up here. Please keep this page open.</span></div>
       <ul class="files" id="videoList"></ul>
       <label class="drop small" for="photos"><span class="drop-t">Add photos (optional)</span>
         <input id="photos" type="file" accept="image/*" multiple></label>
+      <div class="wait" id="photoWait" hidden role="status"><span class="spin"></span><span><b>Getting your photos…</b> This can take a moment. Please keep this page open.</span></div>
       <ul class="files" id="photoList"></ul>
     </fieldset>
 
