@@ -2,6 +2,7 @@ import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, BATCH, PARALLEL, PHOTO_BUDGET, F
 import { loadVideo, grab, planScan, sharpness, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
 import { render, fitPages, brandVars, parseRefs } from "./report.js";
 import * as acct from "./account.js";
+import * as crm from "./crm-link.js";
 
 const $ = (id) => document.getElementById(id);
 const state = { videos: [], photos: [], work: [], logo: "", model: null, user: null, reportId: null, dirty: false };
@@ -254,6 +255,7 @@ async function followJob(id) {
       state.model = m; state.reportId = s.report_id || null; state.dirty = false;
       try { localStorage.removeItem(JOB_KEY); } catch {}
       openReview();
+      crm.afterBuild(m, m.margin);
       if (state.user) { if (state.reportId) await saveToAccount(); }
       return;
     }
@@ -364,6 +366,7 @@ $("shareBtn").addEventListener("click", async () => {
     if (!put.ok) throw new Error("Couldn't save the report for sharing. Please try again.");
     const link = new URL("view.html?id=" + s.id, location.href).href;
     state.model.shareId = s.id; markDirty();
+    crm.afterShare(link);
     out.hidden = false;
     out.innerHTML = `<input id="shareLink" readonly value="${link}" aria-label="Share link"><button class="btn" id="copyBtn" type="button">Copy</button>${navigator.share ? `<button class="btn" id="nativeShare" type="button">Send…</button>` : ""}`;
     $("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(link); $("copyBtn").textContent = "Copied"; } catch { $("shareLink").select(); } };
@@ -533,3 +536,6 @@ if (QUICK) {
 }
 
 resumeJob();
+
+// Lucky Line CRM link: prefill the job from the CRM and show the link banner.
+crm.prefill($);

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>JuicyCRM</title>
+<title>Lucky Line CRM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -44,6 +44,7 @@ h2 .n{color:var(--faint)}
 .stack>*+*{margin-top:8px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .w2{grid-column:1/-1}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 @media (min-width:700px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .row{display:flex;align-items:center;gap:8px}
 .grow{flex:1;min-width:0}
@@ -120,7 +121,7 @@ label.f{display:block;font:600 9.5px 'JetBrains Mono',monospace;letter-spacing:.
 <body>
 <div class="top" id="top"><div class="toprow">
  <a class="ib" id="backBtn" href="#today" aria-label="Back" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></a>
- <div class="brand"><span class="dot off" id="live"></span><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="jg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d4ff3a"/><stop offset="1" stop-color="#2fe0a0"/></linearGradient></defs><path d="M16 2.5c5.2 6.4 10.5 11.6 10.5 17.2A10.5 10.5 0 0116 30.2 10.5 10.5 0 015.5 19.7C5.5 14.1 10.8 8.9 16 2.5z" fill="url(#jg)"/><circle cx="16" cy="19.7" r="6.2" fill="#06080c"/><path d="M16 13.5v12.4M10.6 16.6l10.8 6.2M10.6 22.8l10.8-6.2" stroke="url(#jg)" stroke-width="1.4"/><circle cx="16" cy="19.7" r="6.2" fill="none" stroke="url(#jg)" stroke-width="1.4"/><ellipse cx="11.6" cy="11.8" rx="1.3" ry="2.4" transform="rotate(30 11.6 11.8)" fill="#fff" opacity=".55"/></svg><span id="title"></span></div><span class="mono" id="clockTop" style="font-size:10.5px;color:var(--muted);letter-spacing:.06em"></span>
+ <div class="brand"><span class="dot off" id="live"></span><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="LG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8ff5a"/><stop offset="1" stop-color="#2fd38a"/></linearGradient></defs><g fill="url(#LG)"><circle cx="11" cy="11" r="6"/><circle cx="21" cy="11" r="6"/><circle cx="11" cy="20" r="6"/><circle cx="21" cy="20" r="6"/></g><path d="M16 16c1 5 3 9 6 13" stroke="url(#LG)" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M16 9.5v13M9.5 16h13" stroke="#06080c" stroke-width="1.6"/></svg><span id="title"></span></div><span class="mono" id="clockTop" style="font-size:10.5px;color:var(--muted);letter-spacing:.06em"></span>
  <button class="ib" id="signout" aria-label="Sign out" style="display:none" onclick="signOut()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg></button><a class="ib" href="#search" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></a>
  </div><div class="status" id="status">Connecting…</div><div class="orbs" id="orbs" aria-label="Most urgent"></div></div>
 <div id="scroll"><main id="view"></main></div>
@@ -187,7 +188,7 @@ function contactBtns(phones,emails,sm,ic){const p=(phones||[])[0],e=(emails||[])
 const prClass={Urgent:'red',High:'amber',Normal:'',Low:''};
 
 /* ---------- router ---------- */
-function Login(){status('Sign in');$('#orbs').innerHTML='';V.innerHTML=`<form class="card" id="lg" style="max-width:420px;margin:24px auto"><div class="hero"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="jg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d4ff3a"/><stop offset="1" stop-color="#2fe0a0"/></linearGradient></defs><path d="M16 2.5c5.2 6.4 10.5 11.6 10.5 17.2A10.5 10.5 0 0116 30.2 10.5 10.5 0 015.5 19.7C5.5 14.1 10.8 8.9 16 2.5z" fill="url(#jg2)"/><circle cx="16" cy="19.7" r="6.2" fill="#06080c"/><path d="M16 13.5v12.4M10.6 16.6l10.8 6.2M10.6 22.8l10.8-6.2" stroke="url(#jg2)" stroke-width="1.4"/><circle cx="16" cy="19.7" r="6.2" fill="none" stroke="url(#jg2)" stroke-width="1.4"/><ellipse cx="11.6" cy="11.8" rx="1.3" ry="2.4" transform="rotate(30 11.6 11.8)" fill="#fff" opacity=".55"/></svg><span class="wm"><b>Juicy</b><i>CRM</i></span></div><div class="t" style="text-align:center;margin-top:2px">Lucky Line Roofing</div><div class="s" style="text-align:center">Sign in to see the leads, pipeline and today's calls.</div>
+function Login(){status('Sign in');$('#orbs').innerHTML='';V.innerHTML=`<form class="card" id="lg" style="max-width:420px;margin:24px auto"><div class="hero"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="LG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8ff5a"/><stop offset="1" stop-color="#2fd38a"/></linearGradient></defs><g fill="url(#LG2)"><circle cx="11" cy="11" r="6"/><circle cx="21" cy="11" r="6"/><circle cx="11" cy="20" r="6"/><circle cx="21" cy="20" r="6"/></g><path d="M16 16c1 5 3 9 6 13" stroke="url(#LG2)" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M16 9.5v13M9.5 16h13" stroke="#06080c" stroke-width="1.6"/></svg><span class="wm"><b>Lucky Line</b><i>CRM</i></span></div><div class="t" style="text-align:center;margin-top:2px">Montana team</div><div class="s" style="text-align:center">Sign in to see the leads, pipeline and today's calls.</div>
   <label class="f">Email</label><input type="email" name="e" autocomplete="username" required><label class="f">Password</label><input type="password" name="p" autocomplete="current-password" required style="width:100%;min-height:38px;border-radius:9px;border:1px solid var(--border2);background:var(--panel2);padding:8px 10px;color:var(--text)">
   <div class="s" id="lerr" style="color:var(--red);margin-top:8px"></div><div class="btns"><button class="b p f" type="submit">Sign in</button></div></form>`;
   $('#lg').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));$('#lerr').textContent='';const {data,error}=await sb.auth.signInWithPassword({email:f.e.trim(),password:f.p});if(error){$('#lerr').textContent='That email or password is not right';return}session=data.session;$('#live').classList.remove('off');$('#signout').style.display='grid';location.hash='today';go();setTimeout(refreshOrbs,800)}}
@@ -196,7 +197,7 @@ function go(){if(hosted&&!session){Login();return}const routes={today:Today,pipe
   const m=h.match(/^(job|inspect|contact)-(.+)$/);if(m){v=m[1]+'X';arg=m[2]}
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===(v.replace('X',''))||(v==='jobX'&&a.dataset.v==='pipeline')));
   $('#backBtn').style.display=['today','pipeline','people','inspect'].includes(v)?'none':'grid';
-  const vt={pipeline:'Pipeline',people:'People',search:'Search',add:'New lead',inspect:'Inspect',jobX:'Job',inspectX:'Inspection',contactX:'Contact'}[v];$('#title').innerHTML=vt?`<span class="vt">${vt}</span>`:'<span class="wm"><b>Juicy</b><i>CRM</i></span>';
+  const vt={pipeline:'Pipeline',people:'People',search:'Search',add:'New lead',inspect:'Inspect',jobX:'Job',inspectX:'Inspection',contactX:'Contact'}[v];$('#title').innerHTML=vt?`<span class="vt">${vt}</span>`:'<span class="wm"><b>Lucky Line</b><i>CRM</i></span>';
   clearInterval(window._tick);$('#scroll').scrollTop=0;
   ({jobX:Job,inspectX:Inspect,contactX:Contact})[v]?({jobX:Job,inspectX:Inspect,contactX:Contact})[v](arg):(routes[v]||Today)();
 }
@@ -301,7 +302,7 @@ const Job=guard(async id=>{status('Loading…');const [d,ests]=await Promise.all
   const clock=j.stage==='Proposal Due'&&!j.proposal_sent_at&&j.proposal_due_at;
   V.innerHTML=`<div class="card"><div class="t" style="font-size:18px">${esc(j.title)}</div><a class="s" href="#contact-${c.id}">${esc(c.name||'No contact')} ›</a>${j.address?`<div class="s">${esc(j.address)}</div>`:''}
     ${clock?`<div class="clock" data-due="${new Date(j.proposal_due_at).getTime()}"></div><div class="bar" data-due="${new Date(j.proposal_due_at).getTime()}" data-start="${new Date(j.inspected_at||new Date(j.proposal_due_at).getTime()-3600e3).getTime()}"><i></i></div>`:''}
-    <div class="btns">${contactBtns(c.phones,c.emails)}<a class="b" href="#inspect-${j.id}">${ICON.video}Inspection video</a></div></div>
+    <div class="btns">${contactBtns(c.phones,c.emails)}<a class="b p" href="${roofly(j,c)}" target="_blank" rel="noopener">${ICON.video}Roofly report</a><a class="b" href="#inspect-${j.id}">Quick video</a></div></div>
   <div class="card" style="margin-top:8px"><div class="grid2"><div><label class="f" style="margin-top:0">Stage</label><select id="jstage">${[...STAGES,'Completed','Paid','Lost'].map(s=>`<option ${s===j.stage?'selected':''}>${s}</option>`).join('')}</select></div>
     <div><label class="f" style="margin-top:0">Priority</label><select id="jpri">${['Urgent','High','Normal','Low'].map(s=>`<option ${s===j.priority?'selected':''}>${s}</option>`).join('')}</select></div>
     <div><label class="f">Value ($)</label><input type="number" id="jval" value="${j.value??''}" inputmode="decimal"></div><div><label class="f">Next step due</label><input type="date" id="jdue" value="${j.next_action_due||''}"></div></div>
@@ -321,7 +322,7 @@ const Job=guard(async id=>{status('Loading…');const [d,ests]=await Promise.all
     <div class="sec">${d.notes.map(n=>`<div class="note"><div class="s">${esc(n.kind)} · ${esc(fmtDue(n.happened_at))}${n.author?' · '+esc(n.author):''}</div><div style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('')||'<div class="empty">Nothing logged yet.</div>'}</div></div>
   ${d.other_jobs.length?`<h2>Other jobs</h2><div class="stack">${d.other_jobs.map(o=>`<a class="card" style="display:block" href="#job-${o.id}"><div class="t">${esc(o.title)}</div><div class="s">${esc(o.stage)}</div></a>`).join('')}</div>`:''}`;
   startClocks()});
-function inspCard(i,j,c){const f=i.findings||{};const items=f.findings||[];return `<div class="card" style="margin-top:8px"><div class="row"><div class="grow"><div class="t">Walk-around · ${esc(fmtDue(i.recorded_at))}</div><div class="s">${i.frame_count||0} frames · ${esc(i.status.replace('_',' '))}${i.transcript?' · narration transcribed':' · narration pending'}</div></div></div>
+function inspCard(i,j,c){const f=i.findings||{};const items=f.findings||[];return `<div class="card" style="margin-top:8px"><div class="row"><div class="grow"><div class="t">${i.source==='roofly'?'Roofly report':'Walk-around'} · ${esc(fmtDue(i.recorded_at))}</div><div class="s">${i.source==='roofly'?(i.estimate_total?'Recommended '+money(i.estimate_total):'Report built'):(i.frame_count||0)+' frames · '+(i.transcript?'narration transcribed':'narration pending')} · ${esc(i.status.replace('_',' '))}</div></div>${i.report_url?`<a class="b sm" href="${esc(i.report_url)}" target="_blank" rel="noopener">Open report</a>`:''}</div>
   ${(i.thumbs||[]).length?`<div class="thumbs">${i.thumbs.slice(0,8).map(b=>`<img alt="" src="data:image/jpeg;base64,${b}">`).join('')}</div>`:''}
   ${f.summary?`<div class="sec"><div class="t" style="font-size:14px">Summary</div><div class="s" style="color:var(--text)">${esc(f.summary)}</div></div>`:''}
   ${items.length?`<div class="sec">${items.map(x=>`<div class="find"><span class="pill ${x.severity==='high'?'red':x.severity==='medium'?'amber':''}">${esc(x.severity||'')}</span> <b style="font-weight:500">${esc(x.area||'')}</b><div class="s" style="color:var(--text)">${esc(x.issue||'')}</div></div>`).join('')}</div>`:''}
@@ -338,6 +339,7 @@ window.addTask=async(jid,cid)=>{const t=$('#ntask').value.trim();if(!t){$('#ntas
 window.addNote=async(jid,cid)=>{const b=$('#nbody').value.trim();if(!b){$('#nbody').focus();return}await sql(`insert into crm.notes(contact_id,job_id,kind,body,author,source) values (${q(cid)},${q(jid)},${q($('#nkind').value)},${q(b)},'Justin','App'); update crm.jobs set last_contact_at=now() where id=${q(jid)}; update crm.contacts set last_contact_at=now() where id=${q(cid)}; select 1`);go()};
 
 /* ---------- ESTIMATING ---------- */
+function roofly(j,c){c=c||{};const u=new URLSearchParams({me:'justin',crm:j.id,address:j.address||'',client:(c.name||'').replace(/\s*[(—].*$/,''),phone:(c.phones||[])[0]||'',email:(c.emails||[])[0]||'',notes:j.scope||''});return 'https://useroofly.com/?'+u}
 const money=n=>'$'+Math.round(Number(n)||0).toLocaleString();
 function lineRow(l){return `<tr><td style="width:46%"><input type="text" list="book" class="li" value="${esc(l.item||'')}" placeholder="Item" oninput="fillPrice(this)"></td><td style="width:15%"><input type="number" class="lq" value="${l.qty??1}" inputmode="decimal" oninput="recalc(this)"></td><td style="width:14%"><input type="text" class="lu" value="${esc(l.unit||'ea')}"></td><td style="width:25%"><input type="number" class="lp" value="${l.unit_price??''}" inputmode="decimal" placeholder="$" oninput="recalc(this)"></td></tr>`}
 function estCard(e){return `<div class="card est" data-id="${e.id}"><div class="row"><input type="text" class="en grow" value="${esc(e.name)}" aria-label="Option name"><select class="et" style="width:110px;flex:none" aria-label="Tier">${['Good','Better','Best','Repair','Replace','Other'].map(t=>`<option ${t===e.tier?'selected':''}>${t}</option>`).join('')}</select></div>
@@ -370,10 +372,10 @@ window.gmailProp=async jid=>{const d=cache.job,c=d.contact;try{await saveProp(ji
 
 /* ---------- INSPECTION VIDEO: 2 frames/sec + narration ---------- */
 const InspectPick=guard(async()=>{status('Pick the job, then the walk-around video');if(!cache.pipe)cache.pipe=await fn('crm.app_pipeline()');
-  V.innerHTML=`<div class="card"><div class="t">New inspection</div><div class="s">Pick the job. The video becomes frames (2 per second), the narration gets saved for transcription, and you get a draft inspection report and proposal. The 60-minute clock starts when you save it.</div></div>
+  V.innerHTML=`<div class="card"><div class="t">New inspection</div><div class="s">Pick the job. <b>Roofly report</b> builds the full branded Lucky Line inspection report and priced options from your video and photos, then saves it all back to the job. <b>Quick video</b> is a fast in-app read. Either way the 60-minute clock starts.</div></div>
   <input type="search" id="iq" placeholder="Find the job" style="margin-top:12px"><div class="stack" id="ilist" style="margin-top:12px"></div>
   <div class="s" style="margin-top:16px">Backup: save the video to the <b>Lucky Line Inspections</b> folder in Google Drive and it's processed automatically.</div>`;
-  const draw=f=>{f=(f||'').toLowerCase();$('#ilist').innerHTML=(cache.pipe||[]).filter(j=>!f||(j.title+' '+(j.contact||'')).toLowerCase().includes(f)).slice(0,40).map(j=>`<a class="card" style="display:block" href="#inspect-${j.id}"><div class="t">${esc(j.title)}</div><div class="s">${esc(j.contact||'')} · ${esc(j.stage)}</div></a>`).join('')};
+  const draw=f=>{f=(f||'').toLowerCase();$('#ilist').innerHTML=(cache.pipe||[]).filter(j=>!f||(j.title+' '+(j.contact||'')).toLowerCase().includes(f)).slice(0,40).map(j=>`<div class="card"><div class="t">${esc(j.title)}</div><div class="s">${esc(j.contact||'')} · ${esc(j.stage)}</div><div class="btns"><a class="b p f" href="#job-${j.id}">Open job → Roofly report</a><a class="b sm" href="#inspect-${j.id}">Quick video</a></div></div>`).join('')};
   $('#iq').oninput=e=>draw(e.target.value);draw('')});
 const Inspect=guard(async jid=>{const d=await fn(`crm.app_job(${q(jid)})`);cache.job=d;status(d.job.title);
   V.innerHTML=`<div class="card"><div class="t">${esc(d.job.title)}</div><div class="s">${esc((d.contact||{}).name||'')} · ${esc(d.job.address||'')}</div>
