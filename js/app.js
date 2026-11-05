@@ -119,7 +119,7 @@ $("form").addEventListener("submit", async (e) => {
   const err = $("formErr"); err.textContent = "";
   const roofTypes = [...document.querySelectorAll("#roofTypes input:checked")].map((i) => i.value);
   if (!state.videos.length && !state.photos.length) return (err.textContent = "Add at least one video or photo.");
-  if (!$("address").value.trim()) return (err.textContent = "Add the property address."), $("address").focus();
+  if (!$("address").value.trim() && !QUICK) return (err.textContent = "Add the property address."), $("address").focus();
   if (!roofTypes.length) return (err.textContent = "Check at least one roof type.");
   if (!$("company").value.trim()) return (err.textContent = "Add your company name."), $("company").focus();
 
@@ -495,6 +495,7 @@ window.__roofInspector = { state, openReview, draw };
 // Everything except the videos and the password is remembered on this device, so a failed or
 // repeated run never means typing it all again. Past-work photos are kept in IndexedDB.
 const DRAFT_KEY = "roofly.draft.v1";
+var QUICK = new URLSearchParams(location.search).get("me") === "justin";
 function saveDraft() {
   const d = { fields: {}, checks: {} };
   for (const el of $("form").querySelectorAll("input, textarea, select")) {
@@ -530,3 +531,20 @@ const _setLogo = setLogo;
 setLogo = (url) => { _setLogo(url); queueDraft(); };
 restoreDraft();
 idbGet("work").then((w) => { if (Array.isArray(w) && w.length && !state.work.length) { state.work.push(...w); listFiles("work"); } });
+
+// ---------- Justin's quick page: useroofly.com/justin ----------
+// Everything pre-filled with Lucky Line's details; just add the videos and tap Build.
+if (QUICK) {
+  const fill = (id, v) => { if (!$(id).value.trim()) $(id).value = v; };
+  fill("company", "Lucky Line Roofing"); fill("preparedBy", "Justin Walton"); fill("phone", "4153005496");
+  fill("email", "nomadishere@gmail.com"); fill("website", "luckylineroofing.com");
+  if (!$("colorHex").value || $("colorHex").value === "#16603A") { $("color").value = "#16603A"; $("colorHex").value = "#16603A"; }
+  if (!document.querySelector("#roofTypes input:checked")) { const e = document.querySelector('#roofTypes input[value="EPDM (rubber membrane)"]'); if (e) e.checked = true; }
+  $("makeAcct").checked = false; $("makeAcct").dispatchEvent(new Event("change"));
+  $("address").placeholder = "Optional on your quick page";
+  if (!state.logo) fetch("/justin/logo.png").then((r) => r.blob()).then((b) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); })).then(setLogo).catch(() => {});
+  const banner = document.createElement("div"); banner.className = "tip";
+  banner.innerHTML = "<b>Justin's quick page.</b> Your company, logo and colors are already filled in. Just add your videos below, then scroll down and tap <b>Build my report</b>. You can edit anything in the report afterward.";
+  $("form").prepend(banner);
+  saveDraft();
+}
