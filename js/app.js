@@ -481,7 +481,9 @@ window.__roofInspector = { state, openReview, draw };
 // ---------- keep the form filled in ----------
 // Everything except the videos and the password is remembered on this device, so a failed or
 // repeated run never means typing it all again. Past-work photos are kept in IndexedDB.
-const DRAFT_KEY = "roofly.draft.v1";
+const DRAFT_KEY = "roofly.draft.v2";
+// move older saved drafts over without any customer details (they could hold a past client)
+try { const old = JSON.parse(localStorage.getItem("roofly.draft.v1") || "null"); if (old && !localStorage.getItem(DRAFT_KEY)) { for (const k of ["address", "client", "clientPhone", "clientEmail", "notes", "date"]) delete old.fields[k]; old.jobCleared = true; localStorage.setItem(DRAFT_KEY, JSON.stringify(old)); } localStorage.removeItem("roofly.draft.v1"); } catch {}
 var QUICK = new URLSearchParams(location.search).get("me") === "justin";
 function saveDraft() {
   const d = { fields: {}, checks: {}, jobCleared: true };
