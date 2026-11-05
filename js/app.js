@@ -50,7 +50,11 @@ $("logo").addEventListener("change", async (e) => {
 });
 
 // ---------- API ----------
-async function api(name, body) {
+async function api(name, body, tries = 2) {
+  try { return await api1(name, body); }
+  catch (e) { if (tries > 1 && e.retry) { await new Promise((r) => setTimeout(r, 1500)); return api(name, body, tries - 1); } throw e; }
+}
+async function api1(name, body) {
   const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 175000);
   let r;
   try {
@@ -58,7 +62,7 @@ async function api(name, body) {
   } catch (e) { throw new Error(e.name === "AbortError" ? "That took too long. Please try again, maybe with a shorter video." : "Couldn't reach Roof Inspector. Check your connection and try again."); }
   finally { clearTimeout(to); }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.message || "Something went wrong. Please try again.");
+  if (!r.ok) { const e = new Error(data.message || "Something went wrong. Please try again."); e.retry = r.status === 502; throw e; }
   return data;
 }
 

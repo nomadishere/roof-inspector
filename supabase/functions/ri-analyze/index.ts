@@ -51,7 +51,7 @@ function diyPrompt(job: any, analysis: any) {
 Roof type(s): ${job.roofTypes.join(", ") || "unknown"}. Property: ${job.address || "unknown"}.
 Findings (numbered): ${JSON.stringify((analysis.findings || []).map((f: any, i: number) => ({ n: i + 1, title: f.title, severity: f.severity, description: f.description })))}
 
-Group related findings into practical repair items (max 8). Return ONLY JSON, no markdown:
+Group related findings into practical repair items (max 7). Keep it tight: 3-5 short steps and 2-5 "need" items per repair. Return ONLY JSON, no markdown:
 {"items":[{"title":"...","findings":[1,3],"difficulty":"Easy|Moderate|Advanced|Pro only","need":["tool or material", "..."],"steps":["...","..."],"call_pro_if":"..."}]}
 Keep each step one short sentence; 3-6 steps per item. Include roof safety (fall protection, weather) where it matters. ${VOICE}`;
 }
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    let content: any[] = [], maxTokens = 4000;
+    let content: any[] = [], maxTokens = 9000;
     if (step === "vision") {
       const imgs = (images as any[]).slice(0, MAX_IMAGES);
       if (!imgs.length) return json({ error: "No images" }, 400);
@@ -124,12 +124,12 @@ Deno.serve(async (req) => {
         content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: String(im.data).replace(/^data:image\/\w+;base64,/, "") } });
       }
       content.push({ type: "text", text: visionPrompt(job, imgs.map((i) => i.id).join(", ")) });
-      maxTokens = 4500;
+      maxTokens = 8000;
     } else if (step === "diy") {
       content = [{ type: "text", text: diyPrompt(job, analysis) }];
     } else if (step === "estimate") {
       content = [{ type: "text", text: estimatePrompt(job, analysis, roofType || job.roofTypes[0] || "asphalt shingle") }];
-      maxTokens = 3500;
+      maxTokens = 7000;
     } else return json({ error: "Unknown step" }, 400);
 
     const { text, usage } = await callClaude(content, maxTokens);
