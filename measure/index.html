@@ -218,11 +218,11 @@ function render() {
   const c = M.edges?.counts || {}, seen = Object.entries(c).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ");
   $("aiNote").textContent = (seen ? "Seen on the roof: " + seen + ". " : "") + (M.edges?.notes ? "Check: " + M.edges.notes : "");
   for (const i of document.querySelectorAll("#edges input")) i.addEventListener("input", () => { LEN[i.dataset.t] = Math.max(0, +i.value || 0); const keep = document.activeElement?.dataset.t; renderNoEdges(); });
-  draw();
+  draw(); crmSave();
   try { localStorage.setItem("roofly.measure.last", JSON.stringify({ address: M.formatted, at: Date.now(), roof: M.roof, LEN, facets: M.facets, sys: mat.sys, waste: mat.w })); } catch {}
 }
 function renderNoEdges() { // update everything except the edge inputs (so typing isn't interrupted)
-  const mat = materials();
+  const mat = materials(); crmSave();
   $("mats").innerHTML = `<tr><th>Item</th><th style="text-align:right">Qty</th><th>Unit</th></tr>` + mat.rows.map(([a, q, u, n]) => `<tr><td>${a}<div class="note">${n}</div></td><td class="n">${q}</td><td>${u}</td></tr>`).join("");
   const kp = $("kpis").children; if (kp[6]) kp[6].querySelector("b").textContent = fmt(pitchInfo(M).lowShare > 0.6 ? (LEN.edge || 0) + (LEN.parapet || 0) + (LEN.flashing || 0) + (LEN.eave || 0) + (LEN.rake || 0) : (LEN.eave || 0) + (LEN.rake || 0)) + " ft"; if (kp[7]) kp[7].querySelector("b").textContent = fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft";
   if (kp[2]) { kp[2].querySelector("b").textContent = fmt(mat.sqw, 1); kp[2].querySelector("span").textContent = `Squares + ${mat.w}% waste`; }
@@ -241,7 +241,7 @@ async function measure(address) {
     IMG = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = M.image; });
     $("status").textContent = ""; $("out").hidden = false; render();
     $("out").scrollIntoView({ behavior: "smooth", block: "start" });
-    history.replaceState(null, "", "?address=" + encodeURIComponent(address));
+    history.replaceState(null, "", "?address=" + encodeURIComponent(address) + (CRM_CODE ? "&link=" + CRM_CODE : ""));
   } catch (e) { $("status").textContent = ""; $("err").textContent = e.message || "Couldn't reach Roofly. Check your connection and try again."; }
   finally { $("go").disabled = false; }
 }
@@ -254,6 +254,31 @@ $("copy").addEventListener("click", async () => {
     ...Object.keys(NAMES).filter((k) => LEN[k]).map((k) => `${NAMES[k]}: ${fmt(LEN[k])} ft`), "", "Materials:", ...mat.rows.map(([a, q, u]) => `• ${a}: ${q} ${u}`), "", "Measured from aerial imagery by Roofly (useroofly.com/measure). Field-verify before ordering."].join("\n");
   try { await navigator.clipboard.writeText(t); $("copy").textContent = "Copied ✓"; setTimeout(() => ($("copy").textContent = "Copy summary"), 2000); } catch { prompt("Copy this:", t); }
 });
+
+// Optional: opened from a Lucky Line CRM job (?link=<code>) — the measurements save back to that job.
+const CRM_SB = "https://wwqjoagdnclaylllzcut.supabase.co", CRM_KEY = "sb_publishable_AVIpI00DFiYwugP16-wMWQ_qENLObrc";
+const CRM_CODE = /^[0-9a-f]{20,64}$/i.test(new URLSearchParams(location.search).get("link") || "") ? new URLSearchParams(location.search).get("link") : null;
+let crmT = null;
+function crmNote(html, bad) {
+  let el = document.getElementById("crmNote");
+  if (!el) { el = document.createElement("div"); el.id = "crmNote"; el.className = "tip noprint"; el.style.margin = "10px 0"; $("out").prepend(el); }
+  el.innerHTML = html; el.style.borderColor = bad ? "#c0392b" : "";
+}
+function crmSave() {
+  if (!CRM_CODE || !M) return;
+  clearTimeout(crmT);
+  crmT = setTimeout(async () => {
+    const mat = materials(), pi = pitchInfo(M), d = M.imageryDate || {};
+    const payload = { address: M.formatted, area_ft2: Math.round(M.roof.areaFt2), squares: +mat.sq.toFixed(1), squares_waste: +mat.sqw.toFixed(1), waste: mat.w,
+      pitch: pi.lowShare > 0.6 ? "low-slope" : fmt(p12(pi.steep || pi.avg), 1) + "/12", system: mat.sys, faces: (M.facets || []).length, lengths: LEN,
+      materials: mat.rows.map(([item, qty, unit, note]) => ({ item, qty: +qty || 0, unit, note })), imagery: `${d.month || "?"}/${d.year || "?"}`, quality: M.quality || "" };
+    try {
+      const r = await fetch(CRM_SB + "/rest/v1/rpc/crm_roofly_save", { method: "POST", headers: { apikey: CRM_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_code: CRM_CODE, p_action: "measure", p: payload }) });
+      const out = await r.json().catch(() => null); if (!r.ok) throw new Error((out && out.message) || "Couldn't reach the CRM");
+      crmNote(`<b>Saved to the CRM job ✓</b> ${fmt(payload.area_ft2)} sq ft · ${payload.squares_waste} squares with ${payload.waste}% waste · ${payload.pitch} · ${payload.materials.length} materials. Edits here update the job.`);
+    } catch (e) { crmNote(`<b>Couldn't save to the CRM:</b> ${e.message}`, true); }
+  }, 1200);
+}
 const q = new URLSearchParams(location.search).get("address");
 if (q) { $("addr").value = q; measure(q); }
 </script>
