@@ -79,8 +79,15 @@ export async function saveLead({ email, phone, company }) {
 }
 
 export async function sendReset(email) {
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  if (error) throw new Error(friendly(error.message));
+  const r = await fetch(SUPABASE_URL + "/functions/v1/ri-reset", { method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON }, body: JSON.stringify({ email }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Couldn't send the reset email right now.");
+}
+// Called when someone opens the link from the reset email.
+export async function useResetToken(tokenHash) {
+  const { data, error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+  if (error) throw new Error("That reset link has expired or was already used. Ask for a new one.");
+  return data.user;
 }
 export async function setNewPassword(password) {
   const { data, error } = await sb.auth.updateUser({ password });

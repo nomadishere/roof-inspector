@@ -391,7 +391,12 @@ $("resetForm").addEventListener("submit", async (e) => {
   try { const u = await acct.setNewPassword($("newPw").value); setUser(u); $("resetBox").hidden = true; applyProfile(u); showAccount(); }
   catch (ex) { $("resetErr").textContent = ex.message; }
 });
-acct.currentUser().then((u) => { setUser(u); if (u) applyProfile(u); }).catch(() => {});
+const resetToken = new URLSearchParams(location.search).get("reset_token");
+if (resetToken) {
+  history.replaceState(null, "", location.pathname);
+  acct.useResetToken(resetToken).then((u) => { setUser(u); show("account"); $("loginBox").hidden = true; $("reportsBox").hidden = true; $("resetBox").hidden = false; })
+    .catch((e) => { show("account"); $("reportsBox").hidden = true; $("loginBox").hidden = false; $("loginErr").textContent = e.message; });
+} else acct.currentUser().then((u) => { setUser(u); if (u) applyProfile(u); }).catch(() => {});
 
 // testing hook
 window.__roofInspector = { state, openReview, draw };
