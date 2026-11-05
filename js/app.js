@@ -1,5 +1,5 @@
 import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, BATCH, PARALLEL, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
-import { loadVideo, grab, planScan, bestAround, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
+import { loadVideo, grab, planScan, sharpness, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
 import { render, fitPages, brandVars, parseRefs } from "./report.js";
 import * as acct from "./account.js";
 
@@ -64,20 +64,20 @@ $("logo").addEventListener("change", async (e) => {
 });
 
 // ---------- API ----------
-async function api(name, body, tries = 5) {
+async function api(name, body, tries = 5, userTok = "") {
   for (let i = 1; ; i++) {
-    try { return await api1(name, body); }
+    try { return await api1(name, body, null, userTok); }
     catch (e) { if (i >= tries || !e.retry) throw e; await new Promise((r) => setTimeout(r, [2000, 5000, 10000, 20000][i - 1] || 20000)); }
   }
 }
 // XHR instead of fetch: on a phone, uploading stills over cell can be slow, so the clock only
 // starts once the upload has finished, and we can show upload progress.
-function api1(name, body, onUp) {
+function api1(name, body, onUp, userTok = "") {
   return new Promise((resolve, reject) => {
     const fail = (msg, retry = true) => { const x = new Error(msg); x.retry = retry; reject(x); };
     const x = new XMLHttpRequest(); let to = null;
     x.open("POST", FN + name);
-    x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("apikey", SUPABASE_ANON); x.setRequestHeader("Authorization", "Bearer " + SUPABASE_ANON);
+    x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("apikey", SUPABASE_ANON); x.setRequestHeader("Authorization", "Bearer " + SUPABASE_ANON); if (userTok) x.setRequestHeader("x-user-token", userTok);
     x.upload.onprogress = (e) => onUp && e.lengthComputable && onUp(e.loaded, e.total);
     x.upload.onload = () => { to = setTimeout(() => x.abort(), 240000); };
     x.onerror = () => { clearTimeout(to); fail("Couldn't reach Roofly. Check your connection and try again."); };
@@ -98,12 +98,12 @@ function api1(name, body, onUp) {
 
 // ---------- progress UI ----------
 const STEPS = [
-  ["scan", "Pulling every second of your video", "1 still per second"],
+  ["scan", "Pulling the sharpest still from every second", "and sending them to Roofly. Keep this page open for this step."],
   ["vision", "Inspecting every frame", "Looking for every problem, batch by batch"],
   ["merge", "Putting the findings together", "Removing duplicates and rating priorities"],
-  ["sharp", "Picking the sharpest shots", "2 frames per second around each problem, circled in red"],
-  ["write", "Writing the repair plan, proposals and your note", "DIY plan, interior leak report, Options A and B"],
-  ["build", "Building your report", ""],
+  ["plan", "Planning the repairs", "Summary, repair phases and interior leak report"],
+  ["write", "Writing the repair plan, proposals and your note", "DIY plan, Options A and B"],
+  ["build", "Building your report", "Circling every problem in red"],
 ];
 function showSteps() { $("steps").innerHTML = STEPS.map(([id, t, d]) => `<li id="st-${id}"><span class="dot"></span><span>${t}<span class="det" id="det-${id}">${d}</span></span></li>`).join(""); }
 function step(id, detail) {
@@ -149,12 +149,12 @@ $("form").addEventListener("submit", async (e) => {
   }
   if (state.user) acct.saveProfile(state.user, { phone: aPhone || undefined, company: brand.company, brand }).catch(() => {});
 
-  show("work"); showSteps(); $("workErr").textContent = ""; $("backBtn").hidden = true;
+  show("work"); showSteps(); $("workErr").textContent = ""; $("backBtn").hidden = true; $("leaveNote").hidden = true; $("workHint").hidden = false;
   try {
-    state.model = await build({ brand, job, margin, references: $("references").value.trim() });
-    state.reportId = null;
-    openReview();
-    await saveToAccount();
+    const notify = state.user?.email || aEmail || brand.email;
+    const references = $("references").value.trim();
+    const id = await uploadJob({ brand, job, margin, references, refs: parseRefs(references) }, notify);
+    await followJob(id);
   } catch (ex) {
     console.error(ex);
     $("workErr").textContent = ex.message || "Something went wrong.";
@@ -169,134 +169,117 @@ async function pool(items, n, fn) { // run fn over items, n at a time, keep orde
   return out;
 }
 
-async function build({ brand, job, margin, references }) {
-  // 1. every second of every video
-  step("scan");
+// ---------- server-side jobs ----------
+// The phone pulls the sharpest still from every second and uploads them. Roofly's server does the rest,
+// so the person can lock the phone or leave. We email them and save to their account when it's done.
+const JOB_KEY = "roofly.job.v1";
+async function jobApi(body) {
+  const tok = state.user ? await acct.accessToken().catch(() => "") : "";
+  return api("ri-job", body, 5, tok);
+}
+async function uploadJob(input, notify) {
+  step("scan", "Getting ready…");
+  const created = await jobApi({ action: "create", input, notify_email: notify });
+  const id = created.id;
   const vids = [];
   for (const f of state.videos) vids.push(await loadVideo(f));
   const multi = vids.length > 1;
   const vLabel = (vi, t) => (multi ? `Video ${vi + 1} ` : "Video ") + fmtTime(t);
-  const images = [], index = {};
   const totalSec = vids.reduce((a, v) => a + v.duration, 0);
   const { plan } = planScan(vids, Math.min(SCAN_MAX, Math.ceil(totalSec * SCAN_FPS) + vids.length));
-  // skip stills that are nearly identical to the last one kept (camera paused), but keep one every 3 s
+  const manifest = [], queue = []; let sent = 0, failed = null, scanned = 0, done = false;
+  const say = () => step("scan", `${scanned} of ${plan.length} seconds checked · ${sent} of ${manifest.length} stills sent`);
+  // upload workers: 6 stills per request, 3 requests at a time
+  const uploader = async () => {
+    while (!failed) {
+      if (!queue.length) { if (done) return; await new Promise((r) => setTimeout(r, 150)); continue; }
+      const chunk = queue.splice(0, 6);
+      try { await jobApi({ action: "upload", id, images: chunk }); sent += chunk.length; say(); }
+      catch (e) { failed = e; }
+    }
+  };
+  const workers = [uploader(), uploader(), uploader()];
+  // one still per second: the sharper of t and t+0.5, skipping near-copies when the camera holds still
   const thumb = document.createElement("canvas"); thumb.width = 32; thumb.height = 18;
   const tctx = thumb.getContext("2d", { willReadFrequently: true });
   let last = null, lastT = -99, lastV = -1;
-  for (let k = 0; k < plan.length; k++) {
+  for (let k = 0; k < plan.length && !failed; k++) {
     const { vi, t } = plan[k];
-    const c = await grab(vids[vi], t, 768);
+    let c = await grab(vids[vi], t, 1280);
+    if (t + 0.5 < vids[vi].duration) { const c2 = await grab(vids[vi], t + 0.5, 1280); if (sharpness(c2) > sharpness(c) * 1.05) c = c2; }
+    scanned = k + 1;
     tctx.drawImage(c, 0, 0, 32, 18); const px = tctx.getImageData(0, 0, 32, 18).data;
     const g = new Uint8Array(576); for (let i = 0; i < 576; i++) g[i] = (px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2]) / 3;
     let diff = 255; if (last && vi === lastV) { diff = 0; for (let i = 0; i < 576; i++) diff += Math.abs(g[i] - last[i]); diff /= 576; }
-    if (k % 5 === 0) step("scan", `${k + 1} of ${plan.length} seconds`);
+    if (k % 3 === 0) say();
     if (diff < 5 && t - lastT < 3) continue;
     last = g; lastT = t; lastV = vi;
-    const id = "F" + (images.length + 1);
-    images.push({ id, label: vLabel(vi, t), data: jpeg(c, 0.62) });
-    index[id] = { kind: "video", vi, t };
+    const sid = "F" + (manifest.length + 1);
+    manifest.push({ id: sid, label: vLabel(vi, t) });
+    queue.push({ id: sid, data: jpeg(c, 0.72) });
+    while (queue.length > 30 && !failed) await new Promise((r) => setTimeout(r, 200)); // don't hold too much in memory
   }
-  const photoImgs = [];
-  for (let p = 0; p < Math.min(state.photos.length, PHOTO_BUDGET); p++) {
-    const img = await loadImage(state.photos[p]); photoImgs.push(img);
-    const id = "P" + (p + 1);
-    images.push({ id, label: "Photo " + (p + 1), data: jpeg(imageToCanvas(img, 1024), 0.78) });
-    index[id] = { kind: "photo", p };
+  for (let p = 0; p < Math.min(state.photos.length, PHOTO_BUDGET) && !failed; p++) {
+    const img = await loadImage(state.photos[p]); const sid = "P" + (p + 1);
+    manifest.push({ id: sid, label: "Photo " + (p + 1) }); queue.push({ id: sid, data: jpeg(imageToCanvas(img, 1280), 0.78) });
   }
-  step("scan", `${images.length} stills ready`);
-
-  // 2. inspect every frame, in batches, several at once
-  const batches = [];
-  for (let i = 0; i < images.length; i += BATCH) batches.push(images.slice(i, i + BATCH));
-  let done = 0;
-  step("vision", `0 of ${batches.length} batches`);
-  const raw = await pool(batches, PARALLEL, async (imgs, bi) => {
-    const part = `batch ${bi + 1} of ${batches.length}, ${imgs[0].label} to ${imgs[imgs.length - 1].label}`;
-    const r = await api("ri-report", { step: "vision", job, images: imgs, part });
-    step("vision", `${++done} of ${batches.length} batches`);
-    const res = r.result || {};
-    // attach labels so the merge step knows where each image is in the video
-    for (const f of [...(res.findings || []), ...(res.leaks || [])]) f.source = imgs.find((x) => x.id === f.image)?.label || "";
-    return res;
-  });
-
-  // 3. merge into one inspection (the AI only picks and orders; descriptions stay as written)
-  step("merge");
-  const rawF = {}, rawL = {}, flat = [], covers = [], factsSeen = [];
-  raw.forEach((res, bi) => {
-    (res.findings || []).forEach((f) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
-    (res.leaks || []).forEach((l) => { const id = "L" + (Object.keys(rawL).length + 1); rawL[id] = l; flat.push({ id, at: l.source, location: l.location, observed: l.observed }); });
-    covers.push(...(res.cover_candidates || [])); if (res.facts_seen) factsSeen.push(res.facts_seen);
-  });
-  const M = (await api("ri-report", { step: "consolidate", job, batches: { items: flat, cover_candidates: covers.slice(0, 20), facts_seen: factsSeen } })).result || {};
-  const C = { cover: M.cover, roof_system: M.roof_system, facts: M.facts, size_squares: M.size_squares, findings: [], leaks: [] };
-  const usedF = new Set(), usedL = new Set();
-  for (const k of M.findings || []) { const f = rawF[k.use]; if (!f || usedF.has(k.use)) continue; usedF.add(k.use); (k.also || []).forEach((x) => usedF.add(x)); C.findings.push({ ...f, title: k.title || f.title, severity: k.severity || f.severity }); }
-  for (const k of M.leaks || []) { const l = rawL[k.use]; if (!l || usedL.has(k.use)) continue; usedL.add(k.use); (k.also || []).forEach((x) => usedL.add(x)); C.leaks.push({ ...l, condition: k.condition || l.condition || "" }); }
-  // safety net: nothing the camera found is silently lost
-  for (const id in rawF) if (!usedF.has(id)) C.findings.push(rawF[id]);
-  for (const id in rawL) if (!usedL.has(id)) C.leaks.push(rawL[id]);
-  step("merge", `${C.findings.length} findings, ${C.leaks.length} interior leak locations`);
-  const planP = api("ri-report", { step: "plan", job, c: { roof_system: C.roof_system, facts: C.facts, findings: C.findings.map((f, i) => ({ n: i + 1, title: f.title, category: f.category, severity: f.severity, description: f.description })), leaks: C.leaks.map(({ location, condition, observed, significance }) => ({ location, condition, observed, significance })) } });
-
-  // 4. sharpest frames around each problem, circled
-  step("sharp");
-  const fullFor = async (ref, box) => {
-    const r = index[ref]; if (!r) return null;
-    if (r.kind === "photo") { const c = imageToCanvas(photoImgs[r.p], 1600); return { img: jpeg(box ? circle(c, box) : c, 0.82), label: "Photo " + (r.p + 1) }; }
-    const { canvas, t } = await bestAround(vids[r.vi], r.t, 1600);
-    return { img: jpeg(box ? circle(canvas, box) : canvas, 0.82), label: vLabel(r.vi, t) };
+  const work = [];
+  for (let w = 0; w < Math.min(state.work.length, 8) && !failed; w++) {
+    try { const img = await loadImage(state.work[w]); const sid = "W" + (w + 1); work.push(sid); queue.push({ id: sid, data: jpeg(imageToCanvas(img, 1200), 0.8) }); } catch {}
+  }
+  done = true; await Promise.all(workers);
+  if (failed) throw failed;
+  const secs = Math.round(totalSec);
+  const source = state.videos.length ? `Walkthrough video${state.videos.length > 1 ? "s" : ""} ${state.videos.map((v) => v.name).join(", ")} (${Math.floor(secs / 60)} min ${secs % 60} s)` : `${state.photos.length} photos`;
+  await jobApi({ action: "start", id, images: manifest, work, source });
+  try { localStorage.setItem(JOB_KEY, JSON.stringify({ id, at: Date.now() })); } catch {}
+  return id;
+}
+const STAGE_STEP = { upload: "scan", vision: "vision", merge: "merge", plan: "plan", write: "write", build: "build", done: "build" };
+async function followJob(id) {
+  show("work"); if (!$("steps").children.length) showSteps();
+  $("workHint").hidden = true; $("leaveNote").hidden = false; $("backBtn").hidden = true; $("workErr").textContent = "";
+  $("leaveWhere").textContent = state.user ? "It will be waiting in My reports, and we'll email you a link." : "We'll email you a link when it's ready. Or keep this page open and it will appear here.";
+  let misses = 0;
+  for (;;) {
+    let s;
+    try { s = await api("ri-job", { action: "status", id }, 2); misses = 0; }
+    catch (e) { if (++misses > 20) throw e; await new Promise((r) => setTimeout(r, 6000)); continue; }
+    if (s.status === "error") { try { localStorage.removeItem(JOB_KEY); } catch {} throw new Error(s.error || "Roofly couldn't finish this report. Please try again."); }
+    step(STAGE_STEP[s.stage] || "vision", s.progress || undefined);
+    if (s.status === "done") {
+      step("build", "Circling every problem in red");
+      const m = await fetch(s.report + "?t=" + Date.now()).then((r) => r.json());
+      await circleModel(m);
+      state.model = m; state.reportId = s.report_id || null; state.dirty = false;
+      try { localStorage.removeItem(JOB_KEY); } catch {}
+      openReview();
+      if (state.user) { if (state.reportId) await saveToAccount(); }
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+}
+// draw the red circles into the photos (server stores plain stills plus the box)
+async function circleModel(m) {
+  const one = async (o) => {
+    if (!o || !o.img || o.img.startsWith("data:") || !Array.isArray(o.box)) return;
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = o.img; });
+      o.img = jpeg(circle(imageToCanvas(img, 1600), o.box), 0.82); delete o.box;
+    } catch {}
   };
-  const findings = [];
-  for (let i = 0; i < C.findings.length; i++) {
-    const f = C.findings[i]; step("sharp", `Photo ${i + 1} of ${C.findings.length}`);
-    const shot = (await fullFor(f.image, f.box)) || (await fullFor(images[0].id, null));
-    findings.push({ title: f.title || "Finding", category: f.category || "Roof", severity: f.severity || "Medium", description: f.description || "", img: shot?.img || "", timeLabel: shot?.label || "" });
-  }
-  const leaks = [];
-  for (const l of C.leaks) {
-    const shot = await fullFor(l.image, l.box);
-    leaks.push({ location: l.location || "", condition: l.condition || "", observed: l.observed || "", significance: l.significance || "", img: shot?.img || "", timeLabel: shot?.label || "" });
-  }
-  const coverShot = (await fullFor(C.cover, null)) || (await fullFor(images[0].id, null));
-
-  // 5. write everything else at once
-  step("write");
-  const P = (await planP).result || {};
-  Object.assign(C, { summary: P.summary, leak_summary: P.leak_summary, leak_next_steps: P.leak_next_steps, repair_phases: P.repair_phases, limitations: P.limitations });
-  const cText = { roof_system: C.roof_system, summary: C.summary, facts: C.facts, size_squares: C.size_squares, findings: C.findings.map(({ title, category, severity, description }) => ({ title, category, severity, description })), leaks: C.leaks, repair_phases: C.repair_phases };
-  const workPh = (C.repair_phases || []).filter((p) => (p.findings || []).length && !/ongoing/i.test(p.name || ""));
-  let wrote = 0; const total = 2 + workPh.length + job.roofTypes.length;
-  const tick = (r) => { step("write", `${++wrote} of ${total} sections written`); return r; };
-  // each phase's repair items in its own call, so no single answer runs long
-  const itemsP = Promise.all(workPh.map((ph, i) => api("ri-report", { step: "diy_items", job, c: { ...cText, phase: ph, startAt: 1 + workPh.slice(0, i).reduce((a, p) => a + Math.max(1, Math.round(p.findings.length / 2)), 0) } }).then(tick)));
-  const [guide, itemsArr, note, ...ests] = await Promise.all([
-    api("ri-report", { step: "diy_guide", job, c: cText }).then(tick),
-    itemsP,
-    api("ri-report", { step: "note", job, c: cText }).then(tick),
-    ...job.roofTypes.map((rt) => api("ri-report", { step: "estimate", job, c: cText, roofType: rt }).then(tick)),
-  ]);
-
-  // past-work photos for the Our Work page
-  const workPhotos = [];
-  for (const f of state.work.slice(0, 8)) { try { workPhotos.push({ img: jpeg(imageToCanvas(await loadImage(f), 1200), 0.8), caption: "" }); } catch {} }
-
-  step("build");
-  const secs = Math.round(totalSec), src = state.videos.length ? `Walkthrough video${state.videos.length > 1 ? "s" : ""} ${state.videos.map((v) => v.name).join(", ")} (${Math.floor(secs / 60)} min ${secs % 60} s)` : `${state.photos.length} photos`;
-  const nf = findings.length;
-  return {
-    v: 2, brand, job, margin, references, refs: parseRefs(references),
-    cover: coverShot?.img || "", coverTitle: "Roof Report, Repair Plan & Proposals",
-    source: src, roof_system: C.roof_system || "", summary: Array.isArray(C.summary) ? C.summary : [C.summary || ""],
-    facts: Array.isArray(C.facts) ? C.facts : [], findings, leaks,
-    leak_summary: C.leak_summary || "", leak_next_steps: C.leak_next_steps || [], limitations: C.limitations || [],
-    phases: (C.repair_phases || []).map((p) => ({ name: p.name, covers: p.covers, when: p.when })),
-    diy: { guide: guide.result || {}, phases: (() => { let n = 0; return itemsArr.map((r, i) => ({ name: workPh[i].name, items: ((r.result || {}).items || []).map((x) => ({ ...x, title: `${++n}. ` + String(x.title || "Repair").replace(/^\s*\d+[.)]\s*/, ""), findings: (x.findings || []).filter((n) => n >= 1 && n <= nf) })) })); })() },
-    note: note.result || {},
-    estimates: ests.map((r, i) => { const e = r.result || {}; return { roofType: job.roofTypes[i], options: (e.options || []).map(cleanOpt), compare_rows: e.compare_rows || [], recommended: e.recommended || "", recommendation: Array.isArray(e.recommendation) ? e.recommendation : [e.recommendation || ""], quantities_note: e.quantities_note || "", assumptions: e.assumptions || [], exclusions: e.exclusions || [], payment: e.payment || "" }; }),
-    terms: "50% deposit to schedule, balance due at substantial completion. Proposal valid for 30 days. Changes by written change order.",
-    workPhotos, createdAt: new Date().toISOString(), madeWith: "Roofly",
-  };
+  await pool([...(m.findings || []), ...(m.leaks || [])], 6, one);
+}
+// resume a report that was building when the page was closed (or opened from the email link)
+async function resumeJob() {
+  const q = new URLSearchParams(location.search).get("job");
+  let saved = null; try { saved = JSON.parse(localStorage.getItem(JOB_KEY) || "null"); } catch {}
+  const id = q || (saved && Date.now() - saved.at < 86400000 ? saved.id : null);
+  if (!id || !/^[0-9a-f-]{36}$/.test(id)) return;
+  showSteps();
+  try { await followJob(id); }
+  catch (ex) { $("workErr").textContent = ex.message || "Something went wrong."; $("backBtn").hidden = false; }
 }
 function cleanOpt(o) {
   return { key: o.key || "", name: o.name || "Option", subtitle: o.subtitle || "", warranty: o.warranty || "", timeline: o.timeline || "", scope: o.scope || "", lines: (o.lines || []).map((l) => ({ kind: l.kind === "Labor" ? "Labor" : "Materials", desc: l.desc || "", qty: +l.qty || 0, unit: l.unit || "", price: +l.price || 0 })) };
@@ -548,3 +531,5 @@ if (QUICK) {
   $("form").prepend(banner);
   saveDraft();
 }
+
+resumeJob();

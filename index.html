@@ -145,7 +145,8 @@
 <main id="step-work" class="wrap" hidden>
   <section class="card work">
     <h2>Building your report…</h2>
-    <p class="hint">A full report takes about 3–8 minutes, depending on video length. Keep this page open.</p>
+    <p class="hint" id="workHint">Keep this page open while your stills upload (about a minute or two). After that, Roofly builds the rest on its own.</p>
+    <div class="wait done-note" id="leaveNote" hidden role="status"><span>✓</span><span><b>Upload done. You can lock your phone or close this page now.</b> Your report takes about 5–10 more minutes. <span id="leaveWhere"></span></span></div>
     <ol class="steps" id="steps"></ol>
     <div class="err" id="workErr" role="alert"></div>
     <button class="btn" id="backBtn" type="button" hidden>Back to the form</button>

@@ -94,3 +94,5 @@ export async function setNewPassword(password) {
   if (error) throw new Error(friendly(error.message));
   return data.user;
 }
+
+export async function accessToken() { const { data } = await sb.auth.getSession(); return data.session?.access_token || ""; }
