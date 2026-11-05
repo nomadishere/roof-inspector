@@ -215,7 +215,22 @@ async function assemble(J: any) {
   }
   await db.from("ri_jobs").update({ status: "done", stage: "done", progress: "Ready", report_id: reportId, updated_at: now() }).eq("id", J.id);
   await notify(J, nf);
+  if (inp.job?.crm) await crmWriteback(J, model).catch(async (e) => { await db.from("ri_jobs").update({ error: "CRM: " + String(e).slice(0, 200) }).eq("id", J.id); });
   return { ok: true };
+}
+// JuicyCRM: when a report was started from a CRM job, put the report on that job
+const CRM_URL = "https://wwqjoagdnclaylllzcut.supabase.co", CRM_KEY = "sb_publishable_AVIpI00DFiYwugP16-wMWQ_qENLObrc";
+async function crmWriteback(J: any, m: any) {
+  const tok = await secret("CRM_ROOFLY_TOKEN"); if (!tok || !/^[0-9a-f-]{36}$/.test(String(J.input.job.crm))) return;
+  const sev: any = { Critical: "high", High: "high", Medium: "medium", Low: "low" };
+  const a = m.estimates?.[0]?.options?.[0];
+  const total = a ? Math.round(a.lines.reduce((s: number, l: any) => s + (l.qty || 0) * (l.price || 0), 0)) : null;
+  const r = await fetch(`${CRM_URL}/rest/v1/rpc/roofly_report_ready`, { method: "POST", headers: { apikey: CRM_KEY, "Content-Type": "application/json" }, body: JSON.stringify({
+    p_token: tok, p_job: J.input.job.crm, p_url: `${SITE}?job=${J.id}`, p_summary: (m.summary || []).join("\n\n"),
+    p_findings: (m.findings || []).map((f: any) => ({ severity: sev[f.severity] || "medium", area: f.title, issue: f.description })),
+    p_total: total, p_frames: (J.input.images || []).length, p_ref: J.id }) });
+  const txt = (await r.text()).slice(0, 300);
+  await db.from("ri_jobs").update({ progress: r.ok ? "Ready · added to JuicyCRM" : "Ready" , error: r.ok ? null : "CRM: " + txt }).eq("id", J.id);
 }
 async function notify(J: any, nf: number) {
   const to = String(J.notify_email || "").trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return;
