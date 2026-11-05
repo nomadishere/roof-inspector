@@ -96,7 +96,7 @@ $("form").addEventListener("submit", async (e) => {
   };
   try { localStorage.setItem(BRAND_KEY, JSON.stringify({ ...brand, font: brand.fontIndex, references: $("references").value })); } catch {}
   const d = $("date").value ? new Date($("date").value + "T12:00:00") : new Date();
-  const job = { address: $("address").value.trim(), client: $("client").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim() };
+  const job = { address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim() };
   const margin = { include: pricing() === "margin", pct: Math.max(0, Math.min(100, +$("pct").value || 0)) };
 
   // free account (before any AI spend, so a bad password doesn't waste a run)
@@ -276,7 +276,7 @@ $("pdfBtn").addEventListener("click", () => {
 $("newBtn").addEventListener("click", () => {
   if (!confirmLeave()) return;
   state.model = null; state.videos = []; state.photos = []; listFiles("videos"); listFiles("photos");
-  ["address", "client", "notes"].forEach((k) => ($(k).value = "")); document.querySelectorAll("#roofTypes input").forEach((i) => (i.checked = false));
+  ["address", "client", "clientPhone", "clientEmail", "notes"].forEach((k) => ($(k).value = "")); document.querySelectorAll("#roofTypes input").forEach((i) => (i.checked = false));
   show("form");
 });
 function confirmLeave() { if (state.user && !state.dirty) return true; return window.confirm ? window.confirm("Start a new report? This one will be cleared unless you've shared or downloaded it.") : true; }

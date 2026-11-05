@@ -135,6 +135,7 @@ export function render(m, { editable = true } = {}) {
       <table><tr><th>Select</th><th>Option</th><th class="num">${m.margin.include ? "Total" : "Cost"}</th></tr>
       ${allOpts.map(({ est, opt }) => `<tr><td><span class="selbox"></span></td><td>${esc(opt.name)}${ests.length > 1 ? " — " + esc(est.roofType) : ""}</td><td class="num">${money(optionTotals(opt, m.margin).total)}</td></tr>`).join("")}</table>
       <div class="box"><h5>Payment terms</h5>${esc(m.terms).split("\n")[0] || ""}</div>
+      ${j.client || j.clientPhone || j.clientEmail ? `<p class="sub" style="margin-top:.3in">Owner: ${[j.client, j.clientPhone, j.clientEmail].filter(Boolean).map(esc).join(" · ")}</p>` : ""}
       <div class="sig"><div>Owner signature</div><div>Date</div></div>
       <div class="sig"><div>${esc(company)}</div><div>Date</div></div>
       <div style="margin-top:.5in;text-align:center;color:var(--brand)"><b>${esc(company)}</b><br>${[b.preparedBy, b.phone, b.email, b.website].filter(Boolean).map(esc).join(" · ")}</div>` });
@@ -159,7 +160,7 @@ export function render(m, { editable = true } = {}) {
     <div class="title-card">
       ${E("coverTitle", esc(m.coverTitle || "Roof Inspection Report"), "h1")}
       <div class="subtitle">${esc(j.address)}</div>
-      <div class="meta">${j.client ? "Prepared for: " + esc(j.client) + "<br>" : ""}Prepared by: ${esc([b.preparedBy, company].filter(Boolean).join(", "))}<br>Report date: ${esc(j.date)}</div>
+      <div class="meta">${j.client || j.clientPhone || j.clientEmail ? "Prepared for: " + [j.client, j.clientPhone, j.clientEmail].filter(Boolean).map(esc).join(" · ") + "<br>" : ""}Prepared by: ${esc([b.preparedBy, company].filter(Boolean).join(", "))}<br>Report date: ${esc(j.date)}</div>
       ${b.tagline ? `<div class="tagline">${esc(b.tagline)}</div>` : ""}
     </div>
     <div class="side-contact">${[b.website, b.phone, b.email].filter(Boolean).map(esc).join("<br>")}</div>
