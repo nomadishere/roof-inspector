@@ -77,3 +77,13 @@ export async function saveLead({ email, phone, company }) {
   if (!email && !phone) return;
   await sb.from("ri_leads").insert({ email: email || null, phone: phone || null, company: company || null });
 }
+
+export async function sendReset(email) {
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) throw new Error(friendly(error.message));
+}
+export async function setNewPassword(password) {
+  const { data, error } = await sb.auth.updateUser({ password });
+  if (error) throw new Error(friendly(error.message));
+  return data.user;
+}

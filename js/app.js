@@ -376,6 +376,21 @@ $("reportsList").addEventListener("click", async (e) => {
     await acct.deleteReport(state.user, d.dataset.del).catch(() => {}); showAccount();
   }
 });
+$("forgotBtn").addEventListener("click", async () => {
+  const email = $("loginEmail").value.trim(); $("loginErr").textContent = ""; $("forgotNote").textContent = "";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $("loginErr").textContent = "Type your email above first, then tap Forgot password."; return; }
+  try { await acct.sendReset(email); $("forgotNote").textContent = "Check your email for a link to choose a new password."; }
+  catch (e) { $("loginErr").textContent = "Couldn't send the reset email right now. " + e.message; }
+});
+acct.sb.auth.onAuthStateChange((event, session) => {
+  if (event === "PASSWORD_RECOVERY") { show("account"); $("loginBox").hidden = true; $("reportsBox").hidden = true; $("resetBox").hidden = false; setUser(session?.user); }
+});
+$("resetForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("resetErr").textContent = "";
+  if ($("newPw").value.length < 6) { $("resetErr").textContent = "Use at least 6 characters."; return; }
+  try { const u = await acct.setNewPassword($("newPw").value); setUser(u); $("resetBox").hidden = true; applyProfile(u); showAccount(); }
+  catch (ex) { $("resetErr").textContent = ex.message; }
+});
 acct.currentUser().then((u) => { setUser(u); if (u) applyProfile(u); }).catch(() => {});
 
 // testing hook
