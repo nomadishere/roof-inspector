@@ -504,6 +504,8 @@ function clearJobDraft() {
 }
 function restoreDraft() {
   let d; try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch {}
+  // the browser itself can bring back old typed values on reload; start the customer section clean unless this draft holds it
+  for (const k of JOB_FIELDS) if (k !== "date" && $(k) && !(d && d.fields && d.fields[k])) $(k).value = "";
   if (!d) return;
   if (!d.jobCleared) { for (const k of JOB_FIELDS) delete d.fields[k]; d.jobCleared = true; } // one-time cleanup of older saved drafts
   for (const el of $("form").querySelectorAll("input, textarea, select")) {

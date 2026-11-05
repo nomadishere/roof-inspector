@@ -38,19 +38,19 @@
 
     <fieldset class="card">
       <legend><span class="stepnum">2</span> The job</legend>
-      <label>Property address <input id="address" required placeholder="123 Main St, Livingston, MT"></label>
+      <label>Property address <input id="address" autocomplete="off" required placeholder="123 Main St, Livingston, MT"></label>
       <div class="row2">
-        <label>Client / owner name <input id="client" placeholder="optional"></label>
+        <label>Client / owner name <input id="client" autocomplete="off" placeholder="optional"></label>
         <label>Inspection date <input id="date" type="date"></label>
       </div>
       <div class="row2">
-        <label>Client phone <input id="clientPhone" type="tel" autocomplete="off" placeholder="optional"></label>
-        <label>Client email <input id="clientEmail" type="email" autocomplete="off" placeholder="optional"></label>
+        <label>Client phone <input id="clientPhone" autocomplete="off" type="tel" placeholder="optional"></label>
+        <label>Client email <input id="clientEmail" autocomplete="off" type="email" placeholder="optional"></label>
       </div>
       <div class="lbl">Roof type <span class="hint">check all that apply</span></div>
       <div class="checks" id="roofTypes"></div>
       <label>Notes for the report <span class="hint">optional — roof age, layers, what the owner wants, anything you saw</span>
-        <textarea id="notes" rows="3" placeholder="e.g. Owner says roof is ~18 years old, 2 layers. Leak over the kitchen after storms."></textarea></label>
+        <textarea id="notes" autocomplete="off" rows="3" placeholder="e.g. Owner says roof is ~18 years old, 2 layers. Leak over the kitchen after storms."></textarea></label>
     </fieldset>
 
     <fieldset class="card">
@@ -180,6 +180,6 @@
   </div></div>
 </div>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=b2"></script>
 </body>
 </html>
