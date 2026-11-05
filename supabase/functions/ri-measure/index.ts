@@ -100,9 +100,9 @@ Deno.serve(async (req) => {
       facets.map((f: any) => `#${f.n}: box ${JSON.stringify(f.box)}, pitch ${f.pitchDeg.toFixed(1)}°, facing ${Math.round(f.azimuthDeg)}°, ${Math.round(f.areaFt2)} sq ft`).join("\n");
     for (let attempt = 0; attempt < 2; attempt++) {
       const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "x-api-key": akey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model: "claude-opus-5-5", max_tokens: 8000, temperature: 0, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: b64 } }, { type: "text", text: EDGE_PROMPT(info) }] }] }) });
+        body: JSON.stringify({ model: "claude-opus-5-5", max_tokens: 8000, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: b64 } }, { type: "text", text: EDGE_PROMPT(info) }] }] }) });
       if (r.status === 429 || r.status >= 500) { await new Promise((s) => setTimeout(s, 2500)); continue; }
-      const d = await r.json(); if (!r.ok) break;
+      const d = await r.json(); if (!r.ok) { edges = { lines: [], notes: "Automatic tracing failed (" + (d?.error?.message || r.status) + "). Add the edges by hand." }; break; }
       cost = (d.usage?.input_tokens || 0) * 4e-6 + (d.usage?.output_tokens || 0) * 2e-5;
       const t = (d.content || []).map((x: any) => x.text || "").join("");
       try { edges = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)); } catch { edges = { lines: [], notes: "Couldn't trace the edges automatically. Add them by hand." }; }
