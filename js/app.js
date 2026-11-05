@@ -64,24 +64,36 @@ $("logo").addEventListener("change", async (e) => {
 });
 
 // ---------- API ----------
-async function api(name, body, tries = 3) {
-  try { return await api1(name, body); }
-  catch (e) { if (tries > 1 && e.retry) { await new Promise((r) => setTimeout(r, 1500)); return api(name, body, tries - 1); } throw e; }
-}
-async function api1(name, body) {
-  const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 200000);
-  let r;
-  try {
-    r = await fetch(FN + name, { method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON }, body: JSON.stringify(body) });
-  } catch (e) { const x = new Error(e.name === "AbortError" ? "One step took too long. Please try again." : "Couldn't reach Roofly. Check your connection and try again."); x.retry = true; throw x; }
-  finally { clearTimeout(to); }
-  const data = await r.json().catch(() => ({ error: "AI", message: "The answer was cut off. Retrying…" }));
-  if (!r.ok || data.error) {
-    const e = new Error(data.message || "Something went wrong. Please try again.");
-    e.retry = r.status >= 500 || ["AI", "PARSE", "AI_BUSY"].includes(data.error) || (!data.error && !data.result);
-    throw e;
+async function api(name, body, tries = 5) {
+  for (let i = 1; ; i++) {
+    try { return await api1(name, body); }
+    catch (e) { if (i >= tries || !e.retry) throw e; await new Promise((r) => setTimeout(r, [2000, 5000, 10000, 20000][i - 1] || 20000)); }
   }
-  return data;
+}
+// XHR instead of fetch: on a phone, uploading stills over cell can be slow, so the clock only
+// starts once the upload has finished, and we can show upload progress.
+function api1(name, body, onUp) {
+  return new Promise((resolve, reject) => {
+    const fail = (msg, retry = true) => { const x = new Error(msg); x.retry = retry; reject(x); };
+    const x = new XMLHttpRequest(); let to = null;
+    x.open("POST", FN + name);
+    x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("apikey", SUPABASE_ANON); x.setRequestHeader("Authorization", "Bearer " + SUPABASE_ANON);
+    x.upload.onprogress = (e) => onUp && e.lengthComputable && onUp(e.loaded, e.total);
+    x.upload.onload = () => { to = setTimeout(() => x.abort(), 240000); };
+    x.onerror = () => { clearTimeout(to); fail("Couldn't reach Roofly. Check your connection and try again."); };
+    x.onabort = () => { clearTimeout(to); fail("One step took too long. Please try again."); };
+    x.onload = () => {
+      clearTimeout(to);
+      let data; try { data = JSON.parse(x.responseText); } catch { data = { error: "AI", message: "The answer was cut off. Retrying…" }; }
+      if (x.status >= 400 || data.error) {
+        const e = new Error(data.message || "Something went wrong. Please try again.");
+        e.retry = x.status >= 500 || ["AI", "PARSE", "AI_BUSY"].includes(data.error) || (!data.error && !data.result);
+        return reject(e);
+      }
+      resolve(data);
+    };
+    x.send(JSON.stringify(body));
+  });
 }
 
 // ---------- progress UI ----------
@@ -167,13 +179,22 @@ async function build({ brand, job, margin, references }) {
   const images = [], index = {};
   const totalSec = vids.reduce((a, v) => a + v.duration, 0);
   const { plan } = planScan(vids, Math.min(SCAN_MAX, Math.ceil(totalSec * SCAN_FPS) + vids.length));
+  // skip stills that are nearly identical to the last one kept (camera paused), but keep one every 3 s
+  const thumb = document.createElement("canvas"); thumb.width = 32; thumb.height = 18;
+  const tctx = thumb.getContext("2d", { willReadFrequently: true });
+  let last = null, lastT = -99, lastV = -1;
   for (let k = 0; k < plan.length; k++) {
     const { vi, t } = plan[k];
     const c = await grab(vids[vi], t, 768);
-    const id = "F" + (k + 1);
-    images.push({ id, label: vLabel(vi, t), data: jpeg(c, 0.72) });
+    tctx.drawImage(c, 0, 0, 32, 18); const px = tctx.getImageData(0, 0, 32, 18).data;
+    const g = new Uint8Array(576); for (let i = 0; i < 576; i++) g[i] = (px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2]) / 3;
+    let diff = 255; if (last && vi === lastV) { diff = 0; for (let i = 0; i < 576; i++) diff += Math.abs(g[i] - last[i]); diff /= 576; }
+    if (k % 5 === 0) step("scan", `${k + 1} of ${plan.length} seconds`);
+    if (diff < 5 && t - lastT < 3) continue;
+    last = g; lastT = t; lastV = vi;
+    const id = "F" + (images.length + 1);
+    images.push({ id, label: vLabel(vi, t), data: jpeg(c, 0.62) });
     index[id] = { kind: "video", vi, t };
-    if (k % 5 === 0) step("scan", `${k + 1} of ${plan.length} stills`);
   }
   const photoImgs = [];
   for (let p = 0; p < Math.min(state.photos.length, PHOTO_BUDGET); p++) {
