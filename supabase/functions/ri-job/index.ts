@@ -99,14 +99,15 @@ async function runPart(jobId: string, kind: string, idx: number) {
       for (const f of [...(result.findings || []), ...(result.leaks || [])]) f.source = lab[f.image] || "";
     } else if (kind === "merge") {
       const raw = await partResults(jobId, "vision");
-      const rawF: any = {}, rawL: any = {}, flat: any[] = [], covers: any[] = [], facts: string[] = [];
+      const rawF: any = {}, rawL: any = {}, flat: any[] = [], covers: any[] = [], facts: string[] = [], other: string[] = [];
       raw.forEach((res: any) => {
         (res.findings || []).forEach((f: any) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
         (res.leaks || []).forEach((l: any) => { const id = "L" + (Object.keys(rawL).length + 1); rawL[id] = l; flat.push({ id, at: l.source, location: l.location, observed: l.observed }); });
         covers.push(...(res.cover_candidates || [])); if (res.facts_seen) facts.push(res.facts_seen);
+        for (const o of res.other_notes || []) { const t = String(o || "").trim(); if (t && !other.some((x) => x.toLowerCase().slice(0, 40) === t.toLowerCase().slice(0, 40))) other.push(t.slice(0, 220)); }
       });
       const M = await ai(J, "consolidate", [{ type: "text", text: P.consolidatePrompt(job, { items: flat, cover_candidates: covers.slice(0, 20), facts_seen: facts }) }]);
-      const C: any = { cover: M.cover, roof_system: M.roof_system, facts: M.facts, size_squares: M.size_squares, findings: [], leaks: [] };
+      const C: any = { cover: M.cover, roof_system: M.roof_system, facts: M.facts, size_squares: M.size_squares, findings: [], leaks: [], other: other.slice(0, 12) };
       const uF = new Set(), uL = new Set();
       for (const k of M.findings || []) { const f = rawF[k.use]; if (!f || uF.has(k.use)) continue; uF.add(k.use); (k.also || []).forEach((x: string) => uF.add(x)); C.findings.push({ ...f, title: k.title || f.title, severity: k.severity || f.severity }); }
       for (const k of M.leaks || []) { const l = rawL[k.use]; if (!l || uL.has(k.use)) continue; uL.add(k.use); (k.also || []).forEach((x: string) => uL.add(x)); C.leaks.push({ ...l, condition: k.condition || l.condition || "" }); }
@@ -216,7 +217,7 @@ async function assemble(J: any) {
     v: 2, brand: inp.brand, job: inp.job, margin: inp.margin, references: inp.references || "", refs: inp.refs || [],
     cover: url(C.cover) || url(first), coverTitle: "Roof Report, Repair Plan & Proposals",
     source: inp.source || "", roof_system: C.roof_system || "", summary: Array.isArray(PL.summary) ? PL.summary : [PL.summary || ""],
-    facts: Array.isArray(C.facts) ? C.facts : [], findings, leaks,
+    facts: Array.isArray(C.facts) ? C.facts : [], findings, leaks, other: C.other || [],
     leak_summary: PL.leak_summary || "", leak_next_steps: PL.leak_next_steps || [], limitations: PL.limitations || [],
     phases: (PL.repair_phases || []).map((p: any) => ({ name: p.name, covers: p.covers, when: p.when })),
     diy: { guide, phases: diyPhases },

@@ -162,6 +162,8 @@ export function render(m, { editable = true } = {}) {
   if (arr(m.limitations).length) add("Roof Inspection Report", () => `<h3>Limitations and Further Verification</h3>
     <p>This report is based on a walkthrough video. It documents conditions visible on camera and does not include moisture testing, core samples, measurements or a hands-on inspection. Before final pricing or repair work, we recommend:</p>${LI("limitations", m.limitations)}`);
 
+  if (arr(m.other).length) add("Roof Inspection Report", () => `<h3>Other Things We Noticed</h3><p class="sub">Not roof work and not included in our pricing. Just a heads-up so nothing surprises you.</p>${LI("other", m.other)}`);
+
   // ----- 7b. Roof Measurements (aerial, same as useroofly.com/measure)
   const MS = m.measure;
   if (MS && MS.areaFt2) {

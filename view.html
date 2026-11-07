@@ -17,6 +17,10 @@
 <div class="wrap" id="msg" hidden></div>
 <div class="sheetWrap"><div class="sheet"><div class="report readonly" id="report"></div></div></div>
 <p class="fine" style="padding:0 16px 32px">Made with <a href="./">Roofly</a> — turn a roof video into a branded inspection report, free.</p>
+<script>
+// Shared reports now open in the on-screen proposal page (same design as the CRM), with signing and PDF.
+(function () { var id = new URLSearchParams(location.search).get("id") || ""; if (/^[a-z0-9]{8,20}$/.test(id)) location.replace("p/?id=" + id); })();
+</script>
 <script type="module">
 import { SHARE_BASE, FONTS } from "./js/config.js";
 import { render, fitPages, brandVars } from "./js/report.js";

@@ -367,7 +367,7 @@ $("shareBtn").addEventListener("click", async () => {
     const body = JSON.stringify(state.model);
     const put = await fetch(s.signedUrl, { method: "PUT", headers: { "Content-Type": "application/json", "x-upsert": "false" }, body });
     if (!put.ok) throw new Error("Couldn't save the report for sharing. Please try again.");
-    const link = new URL("view.html?id=" + s.id, location.href).href;
+    const link = new URL("p/?id=" + s.id, location.href).href;
     state.model.shareId = s.id; markDirty();
     crm.afterShare(link);
     out.hidden = false;
