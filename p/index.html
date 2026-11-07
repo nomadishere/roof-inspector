@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Roof Inspection &amp; Proposal</title>
+<link rel="icon" href="../brand/roofly-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../css/proposal.css">
+</head>
+<body>
+<div class="actions no-print"><div class="in">
+  <button class="btn p" id="pdfBtn" type="button">Download PDF</button>
+  <button class="btn" id="shareBtn" type="button">Copy link to share</button>
+</div></div>
+<div id="app"><div class="wrap"><div class="titlecard" style="margin-top:20px"><h1>Loading…</h1></div></div></div>
+<script type="module">
+import { SUPABASE_URL, SUPABASE_ANON, SHARE_BASE, FONTS } from "../js/config.js";
+import { renderProposal, brandStyle, optionTotals } from "../js/proposal.js";
+import { circle, imageToCanvas, jpeg } from "../js/frames.js";
+const $ = (id) => document.getElementById(id);
+const Q = new URLSearchParams(location.search);
+const shareId = Q.get("id") || "", jobId = Q.get("job") || "";
+const REF = /^[a-z0-9]{8,20}$/.test(shareId) ? shareId : /^[0-9a-f-]{36}$/.test(jobId) ? jobId : "";
+let M = null, ST = { pick: {}, signed: null };
+
+async function rpc(fn, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => null); if (!r.ok) throw new Error((d && d.message) || "Something went wrong. Please try again."); return d;
+}
+async function circleAll(m) { // job reports store plain stills plus the box; draw the red circles here
+  await Promise.all([...(m.findings || []), ...(m.leaks || [])].map(async (o) => {
+    if (!o || !o.img || o.img.startsWith("data:") || !Array.isArray(o.box)) return;
+    try { const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = o.img; }); o.img = jpeg(circle(imageToCanvas(img, 1400), o.box), 0.82); delete o.box; } catch {}
+  }));
+}
+function draw() {
+  $("app").innerHTML = renderProposal(M, ST);
+  document.querySelectorAll('input[type=radio][data-ei]').forEach((r) => r.addEventListener("change", () => { ST.pick = { [r.dataset.ei]: r.value }; const y = scrollY; draw(); scrollTo(0, y); }));
+  if ($("pad")) setupPad();
+  $("go")?.addEventListener("click", sign);
+  $("clr")?.addEventListener("click", clearPad);
+}
+let pad, ctx, inked = false;
+function setupPad() {
+  pad = $("pad"); const r = pad.getBoundingClientRect(), k = devicePixelRatio || 1; pad.width = r.width * k; pad.height = r.height * k;
+  ctx = pad.getContext("2d"); ctx.scale(k, k); ctx.lineWidth = 2.4; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#14231a"; inked = false;
+  let down = false, last = null; const pt = (e) => { const b = pad.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  pad.onpointerdown = (e) => { down = true; last = pt(e); pad.setPointerCapture(e.pointerId); e.preventDefault(); };
+  pad.onpointermove = (e) => { if (!down) return; const p = pt(e); ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(p[0], p[1]); ctx.stroke(); last = p; inked = true; e.preventDefault(); };
+  pad.onpointerup = pad.onpointercancel = () => { down = false; };
+}
+function clearPad() { if (ctx) { ctx.clearRect(0, 0, pad.width, pad.height); inked = false; } }
+function sigPng() { const k = Math.min(1, 600 / pad.width), c = document.createElement("canvas"); c.width = Math.round(pad.width * k); c.height = Math.round(pad.height * k); const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(pad, 0, 0, c.width, c.height); return c.toDataURL("image/png"); }
+async function sign() {
+  const E = $("err"); E.textContent = "";
+  const ei = Object.keys(ST.pick)[0], est = (M.estimates || [])[ei], o = est && (est.options || []).find((x) => x.key === ST.pick[ei]);
+  const nm = $("nm").value.trim();
+  if (!o) return (E.textContent = "Pick an option above first.");
+  if (nm.length < 2) return (E.textContent = "Please type your full name.");
+  if (!inked) return (E.textContent = "Please sign in the box.");
+  if (!$("ag").checked) return (E.textContent = "Please check the box to accept.");
+  const b = $("go"); b.disabled = true; b.textContent = "Signing…";
+  try {
+    ST.signed = await rpc("ri_sign", { p: { ref: REF, option_key: `${ei}:${o.key}`, option_name: o.name + ((M.estimates || []).length > 1 ? " (" + est.roofType + ")" : ""), total: Math.round(optionTotals(o, M.margin || {}).total), name: nm, email: $("em").value.trim(), signature: sigPng(), ua: navigator.userAgent } });
+    draw(); scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) { E.textContent = e.message; b.disabled = false; b.textContent = "Sign & accept"; }
+}
+async function main() {
+  if (!REF) throw new Error("This link isn't valid.");
+  const url = shareId ? SHARE_BASE + shareId + ".json" : `${SUPABASE_URL}/storage/v1/object/public/ri-jobs/${jobId}/report.json`;
+  const r = await fetch(url + "?t=" + Date.now()); if (!r.ok) throw new Error("This report couldn't be found. It may have been removed.");
+  M = await r.json();
+  const bs = brandStyle(M.brand || {}, FONTS);
+  document.documentElement.setAttribute("style", bs.vars);
+  if (bs.google) document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${bs.google}&display=swap">`);
+  document.title = `${M.brand?.company || "Roof"} · ${M.job?.address || "Roof Inspection & Proposal"}`;
+  ST.signed = await rpc("ri_signed", { p_ref: REF }).catch(() => null);
+  const e0 = (M.estimates || [])[0]; if (e0) ST.pick = { 0: e0.recommended || (e0.options || [])[0]?.key };
+  draw();
+  await circleAll(M); draw();
+}
+main().catch((e) => { $("app").innerHTML = `<div class="wrap"><div class="titlecard" style="margin-top:20px"><h1>We couldn't open this</h1><p>${String(e.message).replace(/</g, "&lt;")}</p></div></div>`; });
+$("pdfBtn").onclick = () => { document.querySelectorAll("details").forEach((d) => (d.open = true)); setTimeout(() => print(), 300); };
+$("shareBtn").onclick = async () => { try { await navigator.clipboard.writeText(location.href); $("shareBtn").textContent = "Link copied ✓"; } catch { prompt("Copy this link:", location.href); } setTimeout(() => ($("shareBtn").textContent = "Copy link to share"), 2500); };
+addEventListener("resize", () => { if (pad && !inked) setupPad(); });
+</script>
+</body>
+</html>
