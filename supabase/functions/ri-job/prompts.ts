@@ -123,6 +123,8 @@ You are also the company's estimator. Use current typical contractor COST for ma
 ${jobText(job)}
 Roof system found: ${c.roof_system}
 Approx. size: ${c.size_squares ? c.size_squares + " squares" : "estimate from what you know (confirm)"}
+${c.measuredFor ? c.measuredFor(roofType) : ""}
+${c.measuredFor && /^MEASURED/.test(c.measuredFor(roofType)) ? `USE THE AERIAL MEASUREMENTS ABOVE: Option B materials lines must use exactly these quantities (shingles/panels/membrane, underlayment, ice & water, drip edge, starter, ridge cap, valley metal, flashing, boots) and tear-off/install labor by these squares. Option A uses the measured lengths wherever a repair runs along an edge, ridge, valley or wall. Do not mark measured quantities (confirm); quantities_note says they come from aerial measurements and will be field-verified.` : ""}
 Facts: ${JSON.stringify(c.facts)}
 Findings: ${JSON.stringify((c.findings || []).map((f: any, i: number) => ({ n: i + 1, title: f.title, category: f.category, severity: f.severity })))}
 Interior leaks: ${(c.leaks || []).length}

@@ -1,10 +1,12 @@
 // Roofly server-side report jobs. The phone only uploads stills; everything else runs here,
 // one small piece per invocation, so people can lock their phone or leave the page.
-// Flow: create -> upload (many) -> start -> vision parts (parallel) -> merge -> plan
+// Flow: create -> upload (many) -> start -> vision parts (parallel) + aerial roof measurement -> merge -> plan
 //       -> write parts (DIY guide, note, estimates, DIY items per phase, in parallel) -> assemble -> done.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 import * as P from "./prompts.ts";
+// @ts-ignore plain JS module shared with the website (copy of js/measure-core.js)
+import * as MC from "./measure-core.js";
 
 const URL0 = Deno.env.get("SUPABASE_URL")!;
 const db = createClient(URL0, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -86,7 +88,8 @@ async function runPart(jobId: string, kind: string, idx: number) {
   const inp = J.input || {}, job = inp.job || {}, st = J.state || {};
   try {
     let result: any = null;
-    if (kind === "vision") {
+    if (kind === "measure") result = await measureRoof(J);
+    else if (kind === "vision") {
       const ids: { id: string; label: string }[] = part.payload.images;
       const content: any[] = [];
       for (const im of ids) { content.push({ type: "text", text: `${im.id} — ${im.label}` }); content.push(await imageBlock(jobId, im.id)); }
@@ -118,7 +121,8 @@ async function runPart(jobId: string, kind: string, idx: number) {
       await setJob(jobId, { state: { ...st, P: result } });
     } else {
       const C = st.C, PL = st.P || {};
-      const cText = { roof_system: C.roof_system, summary: PL.summary, facts: C.facts, size_squares: C.size_squares, findings: C.findings.map(({ title, category, severity, description }: any) => ({ title, category, severity, description })), leaks: C.leaks, repair_phases: PL.repair_phases };
+      const [MS] = await partResults(jobId, "measure");
+      const cText: any = { roof_system: C.roof_system, summary: PL.summary, facts: C.facts, size_squares: MS?.summary ? MS.summary.squares : C.size_squares, measuredFor: (rt: string) => MS?.summary ? MC.summaryText(MS.summary, rt) : (MS?.error ? `NO AERIAL MEASUREMENT for this address (${MS.error}). Estimate quantities from the video and mark them (confirm).` : ""), findings: C.findings.map(({ title, category, severity, description }: any) => ({ title, category, severity, description })), leaks: C.leaks, repair_phases: PL.repair_phases };
       if (kind === "diy_guide") result = await ai(J, kind, [{ type: "text", text: P.diyGuidePrompt(job, cText) + (idx === 0
         ? `\n\nTHIS CALL: return ONLY these keys: intro, safety, material_rule, weather_window, basic_method.`
         : `\n\nTHIS CALL: return ONLY these keys: shopping_list, maintenance, winter, call_pro, disclaimer.`) }]);
@@ -139,6 +143,22 @@ async function runPart(jobId: string, kind: string, idx: number) {
   }
 }
 
+// Aerial roof measurement (same tool as useroofly.com/measure). Never fails the report: on any problem it
+// returns { error } and the estimate falls back to the video, marked (confirm).
+async function measureRoof(J: any) {
+  const address = String(J.input?.job?.address || "").trim();
+  if (address.length < 5) return { error: "No property address was given, so the roof wasn't measured from the air." };
+  try {
+    const r = await fetch(`${URL0}/functions/v1/ri-measure`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address, token: await workerToken(), ip: J.ip || "job" }) });
+    const d = await r.json().catch(() => ({ error: "BAD", message: "The measurement service didn't answer." }));
+    if (d.error) return { error: d.message || "Couldn't measure this roof from the air." };
+    if (!(d.roof?.areaFt2 > 0)) return { error: "Google's roof data for this address had no roof area." };
+    const png = Uint8Array.from(atob(String(d.image).replace(/^data:image\/\w+;base64,/, "")), (c) => c.charCodeAt(0));
+    await db.storage.from(BUCKET).upload(`${J.id}/aerial.png`, png, { upsert: true, contentType: "image/png" });
+    return { summary: MC.reportSummary(d, J.input?.job?.roofTypes || []), img: `${PUB}/${J.id}/aerial.png`, check: d.check || null };
+  } catch (e) { return { error: "Couldn't measure this roof from the air (" + String((e as Error).message || e).slice(0, 120) + ")." }; }
+}
+
 const WRITE_KINDS = ["diy_guide", "note", "estimate", "diy_items"];
 async function advance(jobId: string) {
   const J = await getJob(jobId); if (!J || J.status !== "running") return;
@@ -152,7 +172,7 @@ async function advance(jobId: string) {
       if (await claimStage(jobId, "merge", "plan", `${n} findings, ${nl} interior leak locations`)) { await addParts(jobId, [{ kind: "plan", idx: 0 }]); await kick(jobId, "plan", 0); }
     }
   } else if (J.stage === "plan") {
-    if (await partsLeft(jobId, ["plan"]) === 0 && await claimStage(jobId, "plan", "write", "Writing the DIY plan, proposals and your note")) {
+    if (await partsLeft(jobId, ["plan", "measure"]) === 0 && await claimStage(jobId, "plan", "write", "Writing the DIY plan, proposals and your note")) {
       const phases = ((J.state?.P?.repair_phases) || []).filter((p: any) => (p.findings || []).length && !/ongoing/i.test(p.name || ""));
       const roofTypes = J.input?.job?.roofTypes || [];
       // DIY items: each phase in chunks of up to 6 findings, so no single answer runs long
@@ -191,6 +211,7 @@ async function assemble(J: any) {
   const ests = (inp.job.roofTypes || []).map((_: string, i: number) => { const a = estParts[i * 2] || {}, b = estParts[i * 2 + 1] || {}; return { ...a, options: [...(a.options || []).slice(0, 1), ...(b.options || []).slice(0, 1)] }; });
   const gParts = await partResults(J.id, "diy_guide"); const guide = { ...(gParts[0] || {}), ...(gParts[1] || {}) };
   const [note] = await partResults(J.id, "note");
+  const [MS] = await partResults(J.id, "measure");
   const model = {
     v: 2, brand: inp.brand, job: inp.job, margin: inp.margin, references: inp.references || "", refs: inp.refs || [],
     cover: url(C.cover) || url(first), coverTitle: "Roof Report, Repair Plan & Proposals",
@@ -202,6 +223,7 @@ async function assemble(J: any) {
     note: note || {},
     estimates: ests.map((e: any, i: number) => ({ roofType: inp.job.roofTypes[i], options: (e.options || []).map(cleanOpt), compare_rows: e.compare_rows || [], recommended: e.recommended || "", recommendation: Array.isArray(e.recommendation) ? e.recommendation : [e.recommendation || ""], quantities_note: e.quantities_note || "", assumptions: e.assumptions || [], exclusions: e.exclusions || [], payment: e.payment || "" })),
     terms: "50% deposit to schedule, balance due at substantial completion. Proposal valid for 30 days. Changes by written change order.",
+    measure: MS?.summary ? { ...MS.summary, img: MS.img, check: MS.check || null } : { error: MS?.error || "No property address was given, so the roof wasn't measured from the air." },
     workPhotos: (inp.work || []).map((id: string) => ({ img: `${PUB}/${J.id}/${id}.jpg`, caption: "" })),
     createdAt: now(), madeWith: "Roofly", jobId: J.id,
   };
@@ -311,6 +333,9 @@ Deno.serve(async (req) => {
     if (!batches.length) return out({ error: "EMPTY", message: "No stills were uploaded." }, 400);
     await db.from("ri_jobs").update({ input, status: "running", stage: "vision", progress: `0 of ${batches.length} batches`, state: { nBatches: batches.length }, updated_at: now() }).eq("id", b.id);
     await addParts(b.id, batches.map((imgs, i) => ({ kind: "vision", idx: i, payload: { images: imgs, part: `batch ${i + 1} of ${batches.length}, ${imgs[0].label} to ${imgs[imgs.length - 1].label}` } })));
+    await addParts(b.id, [{ kind: "measure", idx: 0 }]);
+    // @ts-ignore
+    EdgeRuntime.waitUntil(kick(b.id, "measure", 0));
     // start them a little apart so we don't hit the AI all at once
     // @ts-ignore
     EdgeRuntime.waitUntil((async () => { for (let i = 0; i < batches.length; i++) { await kick(b.id, "vision", i); if (i % 6 === 5) await new Promise((r) => setTimeout(r, 1500)); } })());

@@ -108,74 +108,19 @@ table.t input{width:92px!important;display:inline-block!important;margin:0!impor
 
 <script type="module">
 import { FN, SUPABASE_ANON } from "../js/config.js";
+import { COL, NAMES, p12, dirn, fmt, pitchInfo, lengths, materials as matsFor, wasteFor } from "../js/measure-core.js";
 const $ = (id) => document.getElementById(id);
-const COL = { eave: "#2EA84A", rake: "#E67E22", ridge: "#D64541", hip: "#8E44AD", valley: "#2B6FD8", edge: "#16A2B8", parapet: "#FFFFFF", flashing: "#F1C40F" };
-const NAMES = { eave: "Eaves", rake: "Rakes", ridge: "Ridges", hip: "Hips", valley: "Valleys", edge: "Low-slope edges", parapet: "Parapet walls", flashing: "Wall / step flashing" };
 let M = null, LEN = {}, IMG = null;
 
-const p12 = (deg) => 12 * Math.tan((deg * Math.PI) / 180);
-const dirn = (a) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.floor((((a + 22.5) % 360) + 360) % 360 / 45)];
-const fmt = (n, d = 0) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
-
-function pitchInfo(m) {
-  const all = m.facets || [], A = all.reduce((s, f) => s + f.areaFt2, 0) || 1;
-  const avg = all.reduce((s, f) => s + f.pitchDeg * f.areaFt2, 0) / A;
-  const steep = all.filter((f) => f.pitchDeg >= 9.5);
-  const sA = steep.reduce((s, f) => s + f.areaFt2, 0);
-  const sp = sA ? steep.reduce((s, f) => s + f.pitchDeg * f.areaFt2, 0) / sA : avg;
-  return { avg, steep: sp, lowShare: 1 - sA / A };
-}
-function lengths(m) {
-  const k = p12(pitchInfo(m).steep) / 12, pf = Math.sqrt(1 + k * k), hf = Math.sqrt(1 + (k * k) / 2), t = {};
-  for (const l of m.edges?.lines || []) {
-    const pl = Math.hypot(l.x2 - l.x1, l.y2 - l.y1) * m.ftPerPx;
-    const len = pl * (l.type === "rake" ? pf : l.type === "hip" || l.type === "valley" ? hf : 1);
-    t[l.type] = (t[l.type] || 0) + len; l._len = len;
-  }
-  for (const x in t) t[x] = Math.round(t[x]);
-  return t;
-}
 function system() {
   const v = $("sys").value; if (v !== "auto") return v;
   return pitchInfo(M).lowShare > 0.6 ? "lowslope" : "shingle";
 }
 function waste() {
   const v = $("waste").value; if (v !== "auto") return +v;
-  if (system() === "lowslope") return 10;
-  return (LEN.hip || 0) + (LEN.valley || 0) > 40 ? 15 : 10;
+  return wasteFor(system(), LEN);
 }
-const ceil = (x) => Math.max(0, Math.ceil(x - 1e-9));
-
-function materials() {
-  const area = M.roof.areaFt2, w = waste(), sq = area / 100, sqw = sq * (1 + w / 100), sys = system();
-  const e = LEN.eave || 0, r = LEN.rake || 0, ri = LEN.ridge || 0, h = LEN.hip || 0, v = LEN.valley || 0, ed = LEN.edge || 0, pa = LEN.parapet || 0, fl = LEN.flashing || 0;
-  const c = M.edges?.counts || {};
-  const rows = [];
-  if (sys === "lowslope") {
-    rows.push(["EPDM membrane (10' × 100' rolls)", ceil((area * 1.1 + pa * 2) / 1000), "rolls", `${fmt(area * 1.1 + pa * 2)} sq ft incl. 10% laps + 2' up parapets`]);
-    rows.push(["Cover board / insulation (4' × 8')", ceil((area * 1.05) / 32), "sheets", `${fmt(area)} sq ft`]);
-    rows.push(["Bonding adhesive", ceil(area / 60), "gal", "about 60 sq ft per gallon"]);
-    rows.push(["Edge metal / drip edge (10' sticks)", ceil(((ed + e + r) * 1.05) / 10), "pcs", `${fmt(ed + e + r)} ft of edge + 5%`]);
-    if (pa) rows.push(["Parapet coping / termination bar", ceil((pa * 1.05) / 10), "pcs (10')", `${fmt(pa)} ft`]);
-    if (fl) rows.push(["Wall flashing (membrane + termination bar)", fmt(fl), "ft", "where the roof meets taller walls"]);
-    rows.push(["Seam tape (3\" × 100')", ceil((area / 100) * 10 / 100) || 1, "rolls", "rough: ~10 ft of seam per square"]);
-    rows.push(["Pipe boots / pourable sealer pockets", (c.vents || 0) + (c.hvac || 0), "ea", "vents + equipment seen on the photo (confirm)"]);
-  } else {
-    if (sys === "metal") rows.push(["Metal panels (coverage)", fmt(sqw, 1), "squares", `${fmt(area)} sq ft + ${w}% waste`]);
-    else rows.push(["Shingles (3 bundles per square)", ceil(sqw * 3), "bundles", `${fmt(sqw, 1)} squares incl. ${w}% waste`]);
-    rows.push(["Synthetic underlayment (10-square rolls)", ceil(sqw / 10), "rolls", `${fmt(sqw, 1)} squares`]);
-    rows.push(["Ice & water shield (2-square rolls)", ceil((e * 6 + v * 3) / 200), "rolls", `eaves ${fmt(e)} ft × 6' + valleys ${fmt(v)} ft × 3'`]);
-    rows.push(["Drip edge (10' sticks)", ceil(((e + r) * 1.05) / 10), "pcs", `eaves + rakes ${fmt(e + r)} ft + 5%`]);
-    if (sys !== "metal") rows.push(["Starter strip (~105 ft per bundle)", ceil((e + r) / 105), "bundles", `${fmt(e + r)} ft`]);
-    rows.push([sys === "metal" ? "Ridge / hip cap (10' pcs)" : "Hip & ridge cap (~30 ft per bundle)", sys === "metal" ? ceil(((ri + h) * 1.05) / 10) : ceil((ri + h) / 30), sys === "metal" ? "pcs" : "bundles", `${fmt(ri + h)} ft`]);
-    if (v) rows.push(["Valley metal / W-valley (10' pcs)", ceil((v * 1.05) / 10), "pcs", `${fmt(v)} ft`]);
-    if (fl) rows.push(["Step / wall flashing", fmt(fl), "ft", "where the roof meets walls"]);
-    if (ri) rows.push(["Ridge vent (4' pcs, optional)", ceil(ri / 4), "pcs", `${fmt(ri)} ft of ridge`]);
-    rows.push(["Pipe boots", c.vents || 0, "ea", "vents seen on the photo (confirm)"]);
-    if (sys !== "metal") rows.push(["Coil roofing nails (boxes)", ceil(sqw / 16), "boxes", "about 16 squares per box"]);
-  }
-  return { rows, sq, sqw, w, sys };
-}
+function materials() { return matsFor(M, LEN, system(), waste()); }
 
 function draw() {
   const cv = $("cv"), ctx = cv.getContext("2d"), L = M.edges?.lines || [];
@@ -216,7 +161,8 @@ function render() {
   $("faces").innerHTML = `<tr><th>#</th><th>Pitch</th><th>Facing</th><th style="text-align:right">Area (sq ft)</th></tr>` + (M.facets || []).map((f) =>
     `<tr><td>${f.n}</td><td>${fmt(p12(f.pitchDeg), 1)}/12 <span class="note">(${Math.round(f.pitchDeg)}°)</span></td><td>${dirn(f.azimuthDeg)}</td><td class="n">${fmt(f.areaFt2)}</td></tr>`).join("");
   const c = M.edges?.counts || {}, seen = Object.entries(c).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ");
-  $("aiNote").textContent = (seen ? "Seen on the roof: " + seen + ". " : "") + (M.edges?.notes ? "Check: " + M.edges.notes : "");
+  const ck = M.check ? (M.check.ok ? `Outline check passed: the traced roof covers ${fmt(M.check.tracedFt2)} sq ft from above, matching Google's ${fmt(M.check.googleFt2)} sq ft. ` : `⚠ Outline check: the traced roof covers ${fmt(M.check.tracedFt2)} sq ft from above, but Google measures ${fmt(M.check.googleFt2)} sq ft. Part of the roof may be missing from the drawing, so check the edge lengths before ordering. `) : "";
+  $("aiNote").textContent = ck + (seen ? "Seen on the roof: " + seen + ". " : "") + (M.edges?.notes ? "Check: " + M.edges.notes : "");
   for (const i of document.querySelectorAll("#edges input")) i.addEventListener("input", () => { LEN[i.dataset.t] = Math.max(0, +i.value || 0); const keep = document.activeElement?.dataset.t; renderNoEdges(); });
   draw(); crmSave();
   try { localStorage.setItem("roofly.measure.last", JSON.stringify({ address: M.formatted, at: Date.now(), roof: M.roof, LEN, facets: M.facets, sys: mat.sys, waste: mat.w })); } catch {}

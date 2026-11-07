@@ -125,3 +125,15 @@
 .report .refs .ph2{font-weight:bold;color:var(--brand)}
 .report .item p{margin:.03in 0 .05in}
 .report h5{margin:.08in 0 .02in;font-size:9.5pt}
+
+/* Roof Measurements */
+.report .aerialwrap{border:1px solid #ddd;background:#e9ecea;line-height:0}
+.report svg.aerial{width:100%;height:auto;max-height:5.2in;display:block}
+.report .mlegend{display:flex;flex-wrap:wrap;gap:.04in .16in;font-size:8.5pt;margin:.08in 0 .12in}
+.report .mlegend span{display:inline-flex;align-items:center;gap:.05in}
+.report .mlegend i{width:.25in;height:.08in;border:1px solid #0003;display:inline-block}
+.report .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:.08in}
+.report .kpi{background:var(--tint);padding:.08in .1in}
+.report .kpi b{display:block;font-size:13pt;color:var(--brand)}
+.report .kpi span{font-size:8pt}
+.report .msw{display:inline-block;width:.12in;height:.12in;margin-right:.06in;vertical-align:-1px;border:1px solid #0003}

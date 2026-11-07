@@ -1,3 +1,4 @@
+import { COL, NAMES, fmt, SYS_NAMES } from "./measure-core.js";
 // Builds the report package pages, following the Lucky Line VFW Roof Package (35 pages, Oct 2026) section for section.
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const money = (n) => "$" + (Math.round(Number(n) || 0)).toLocaleString("en-US");
@@ -160,6 +161,51 @@ export function render(m, { editable = true } = {}) {
     <div class="grid3">${F.slice(i, i + 3).map((f, k) => { const n = i + k; return `<div class="finding">${editable ? `<button class="rm" data-rm="findings.${n}" type="button">Remove</button>` : ""}<img class="ph" src="${f.img}" alt="">${photoCap(f, n + 1, `findings.${n}`)}</div>`; }).join("")}</div>`);
   if (arr(m.limitations).length) add("Roof Inspection Report", () => `<h3>Limitations and Further Verification</h3>
     <p>This report is based on a walkthrough video. It documents conditions visible on camera and does not include moisture testing, core samples, measurements or a hands-on inspection. Before final pricing or repair work, we recommend:</p>${LI("limitations", m.limitations)}`);
+
+  // ----- 7b. Roof Measurements (aerial, same as useroofly.com/measure)
+  const MS = m.measure;
+  if (MS && MS.areaFt2) {
+    const LEN = MS.lengths || {}, lines = MS.lines || [];
+    const xs = lines.flatMap((l) => [l.x1, l.x2]), ys = lines.flatMap((l) => [l.y1, l.y2]);
+    const pad = 70;
+    let x0 = Math.max(0, (xs.length ? Math.min(...xs) : 200) - pad), y0 = Math.max(0, (ys.length ? Math.min(...ys) : 200) - pad);
+    let x1 = Math.min(1280, (xs.length ? Math.max(...xs) : 1080) + pad), y1 = Math.min(1280, (ys.length ? Math.max(...ys) : 1080) + pad);
+    // keep the crop no taller than 4:3 wide so it fits the page
+    if ((y1 - y0) > (x1 - x0) * 1.05) { const cx = (x0 + x1) / 2, w = Math.min(1280, (y1 - y0) / 1.05); x0 = Math.max(0, cx - w / 2); x1 = Math.min(1280, x0 + w); }
+    const W = x1 - x0, k = W / 1000; // label size relative to the crop
+    const svg = `<svg class="aerial" viewBox="${x0} ${y0} ${W} ${y1 - y0}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Aerial photo with the roof edges traced">
+      <image href="${MS.img}" x="0" y="0" width="1280" height="1280"/>
+      ${[0, 1].map((pass) => lines.map((l) => `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${pass ? COL[l.type] || "#fff" : "#000"}" stroke-width="${(pass ? 7 : 12) * k}" stroke-linecap="round"/>`).join("")).join("")}
+      ${lines.filter((l) => l.len >= 6).map((l) => { const cx = (l.x1 + l.x2) / 2, cy = (l.y1 + l.y2) / 2, t = l.len + "'", w = (t.length * 17 + 14) * k;
+        return `<rect x="${cx - w / 2}" y="${cy - 19 * k}" width="${w}" height="${38 * k}" rx="${7 * k}" fill="#fff"/><text x="${cx}" y="${cy + 10 * k}" font-size="${29 * k}" font-weight="bold" text-anchor="middle" fill="#0B2545" font-family="Arial,sans-serif">${t}</text>`; }).join("")}
+    </svg>`;
+    const legend = Object.keys(NAMES).filter((t) => LEN[t]).map((t) => `<span><i style="background:${COL[t]}"></i>${NAMES[t]}</span>`).join("");
+    const ck = MS.check ? (MS.check.ok ? `Outline check passed: the traced roof matches Google's footprint (${fmt(MS.check.tracedFt2)} vs ${fmt(MS.check.googleFt2)} sq ft from above).` : `Outline check: the traced roof covers ${fmt(MS.check.tracedFt2)} sq ft from above vs Google's ${fmt(MS.check.googleFt2)} sq ft, so part of the roof may be missing from the drawing. Verify edge lengths on site.`) : "";
+    const m0 = (MS.materials || [])[0] || {};
+    const kp = [["Roof area", fmt(MS.areaFt2) + " sq ft"], ["Squares", fmt(MS.squares, 1)], [`With ${m0.waste || 10}% waste`, fmt(m0.squaresWaste, 1)], ["Main pitch", MS.pitch], ["Roof faces", MS.faces],
+      ...(MS.pitch === "Low-slope"
+        ? [["Roof outline (edges + walls)", fmt((LEN.edge || 0) + (LEN.parapet || 0) + (LEN.flashing || 0) + (LEN.eave || 0) + (LEN.rake || 0)) + " ft"], ["Wall flashing", fmt(LEN.flashing || 0) + " ft"], ["Parapet walls", fmt(LEN.parapet || 0) + " ft"]]
+        : [["Drip edge (eaves + rakes)", fmt((LEN.eave || 0) + (LEN.rake || 0)) + " ft"], ["Ridges + hips", fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft"], ["Valleys", fmt(LEN.valley || 0) + " ft"]])];
+    add("Roof Measurements", () => `
+      <h2 class="title">Roof Measurements</h2><p class="sub">Measured from aerial imagery (${esc(MS.imagery)}${MS.quality ? ", " + esc(MS.quality) + " quality" : ""})${MS.style ? " · " + esc(MS.style) + " roof" : ""}</p>
+      <div class="aerialwrap">${svg}</div>
+      <div class="mlegend">${legend}</div>
+      <div class="kpis">${kp.map(([a, v]) => `<div class="kpi"><b>${esc(v)}</b><span>${esc(a)}</span></div>`).join("")}</div>`,
+      ["Roof Measurements", "Aerial photo with every edge traced, squares, pitch and a materials list"]);
+    add("Roof Measurements", () => `
+      <div class="cols"><div><h3>Edge Lengths</h3><table><tr><th>Edge</th><th class="num">Feet</th></tr>
+        ${Object.keys(NAMES).filter((t) => LEN[t]).map((t) => `<tr><td><span class="msw" style="background:${COL[t]}"></span>${NAMES[t]}</td><td class="num">${fmt(LEN[t])}</td></tr>`).join("")}</table></div>
+      <div><h3>Roof Faces</h3><table><tr><th>#</th><th>Pitch</th><th>Facing</th><th class="num">Sq ft</th></tr>
+        ${(MS.facets || []).slice(0, 16).map((f) => `<tr><td>${f.n}</td><td>${esc(f.pitch)}</td><td>${esc(f.facing)}</td><td class="num">${fmt(f.areaFt2)}</td></tr>`).join("")}
+        ${(MS.facets || []).length > 16 ? `<tr><td colspan="4" class="sub">+ ${(MS.facets || []).length - 16} smaller faces</td></tr>` : ""}</table></div></div>
+      ${(MS.materials || []).map((mt, mi) => `<h3>Materials${(MS.materials || []).length > 1 ? " — " + esc(mt.roofType) : ""}</h3><p class="sub">${esc(SYS_NAMES[mt.sys] || mt.roofType)}, full replacement, ${fmt(mt.squaresWaste, 1)} squares incl. ${mt.waste}% waste.</p>
+        <table><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th>Based on</th></tr>
+        ${(mt.rows || []).map((r, ri) => `<tr><td>${esc(r.item)}</td><td class="num">${E(`measure.materials.${mi}.rows.${ri}.qty`, esc(r.qty))}</td><td>${esc(r.unit)}</td><td class="sub">${esc(r.note)}</td></tr>`).join("")}</table>`).join("")}
+      <p class="sub">${esc(ck)} ${MS.notes ? "Note: " + esc(MS.notes) : ""} Measurements are from aerial imagery and are field-verified before materials are ordered.</p>`);
+  } else if (MS && MS.error) {
+    add("Roof Measurements", () => `<h2 class="title">Roof Measurements</h2>
+      <div class="box">${esc(MS.error)} The quantities in the proposals below are estimated from the walkthrough video and are marked "(confirm)" until the roof is measured on site.</div>`);
+  }
 
   // ----- 8. Recommendation & Proposals (one block per roof type)
   const ests = m.estimates || [];
