@@ -52,8 +52,14 @@ Return ONLY JSON:
 async function learned(quality: string) {
   const { data } = await db.from("ri_corrections").select("traced,corrected,source,quality").gte("updated_at", new Date(Date.now() - 365 * 864e5).toISOString()).limit(2000);
   const rows = data || [];
-  const build = (list: any[]) => {
+  const build = (list0: any[]) => { let list = list0;
     const r: Record<string, number[]> = {};
+    // Eaves vs rakes are often mislabeled by the tracer, so learn them TOGETHER as one perimeter factor
+    // (otherwise "too many eaves, no rakes" would teach it to shrink the drip edge).
+    list = list.map((c: any) => { const tr = c.traced || {}, co = c.corrected || {};
+      const tp = (+tr.eave || 0) + (+tr.rake || 0), cp = (+co.eave || 0) + (+co.rake || 0);
+      const { eave: _e, rake: _r, ...trRest } = tr, { eave: _e2, rake: _r2, ...coRest } = co;
+      return { ...c, traced: { ...trRest, ...(tp ? { perim: tp } : {}) }, corrected: { ...coRest, ...(cp && tp ? { perim: cp } : {}) } }; });
     for (const c of list) for (const t of Object.keys(c.corrected || {})) {
       const a = +c.traced?.[t] || 0, b = +c.corrected[t] || 0;
       if (a < 10 || b <= 0) continue;
@@ -65,9 +71,10 @@ async function learned(quality: string) {
       const med = v[Math.floor(v.length / 2)]; if (Math.abs(med - 1) < 0.03 && t !== "area") continue; /* a near-1 AREA factor still counts: Roofly is accurate, so the buffer can go */ out[t] = { f: Math.max(0.75, Math.min(1.35, +med.toFixed(3))), n }; }
     return out;
   };
-  const same = build(rows.filter((c: any) => (c.quality || "").toUpperCase() === String(quality || "").toUpperCase()));
-  const all = build(rows);
+  const same0 = build(rows.filter((c: any) => (c.quality || "").toUpperCase() === String(quality || "").toUpperCase()));
+  const all = build(rows); const same = same0;
   const calib: Record<string, { f: number; n: number }> = { ...all, ...same };
+  if (calib.perim) { calib.eave = calib.perim; calib.rake = calib.perim; delete calib.perim; }
   const NAME: any = { eave: "eaves", rake: "rakes", ridge: "ridges", hip: "hips", valley: "valleys", edge: "low-slope edges", parapet: "parapets", flashing: "wall flashing" };
   // roof AREA: learned factor once 3+ checked roofs agree; until then a +5% safety buffer (Justin, Nov 7 2026)
   const areaAdj = calib.area ? { f: calib.area.f, n: calib.area.n, kind: "learned" } : { f: 1.05, n: 0, kind: "buffer" };
