@@ -12,7 +12,7 @@
 <body>
 <header class="topbar" id="topbar">
   <a class="logo" href="./" aria-label="Roofly home"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><path d="M14 54 L50 22 L86 54" fill="none" stroke="currentColor" stroke-width="11" stroke-linejoin="miter"/><rect x="30" y="68" width="40" height="11" fill="currentColor"/></svg><span>Roofly</span></a>
-  <button class="btn small" id="acctBtn" type="button">Log in</button>
+  <button class="btn small" id="acctBtn" type="button">Log in / Sign up</button>
 </header>
 
 <!-- STEP 1: form -->
@@ -115,13 +115,13 @@
 <!-- ACCOUNT: log in / my reports -->
 <main id="step-account" class="wrap" hidden>
   <section class="card" id="loginBox">
-    <h2>Log in</h2>
-    <p class="hint">See your saved reports, logo and colors.</p>
+    <h2>Log in or create your free account</h2>
+    <p class="hint">See your saved reports, logo and colors. New here? Type your email, pick a password (6+ characters) and tap Create account.</p>
     <form id="loginForm" novalidate>
       <label>Email <input id="loginEmail" type="email" autocomplete="email"></label>
-      <label>Password <input id="loginPw" type="password" autocomplete="current-password"></label>
+      <label>Password <input id="loginPw" type="password" autocomplete="current-password" minlength="6"></label>
       <div class="err" id="loginErr" role="alert"></div>
-      <div class="tb-row" style="margin-top:12px"><button class="btn primary" type="submit" id="loginGo">Log in</button><button class="btn ghost" type="button" id="forgotBtn">Forgot password?</button><button class="btn ghost" type="button" id="loginBack">Back</button></div>
+      <div class="tb-row" style="margin-top:12px"><button class="btn primary" type="submit" id="loginGo">Log in</button><button class="btn" type="button" id="signupGo">Create account</button><button class="btn ghost" type="button" id="forgotBtn">Forgot password?</button><button class="btn ghost" type="button" id="loginBack">Back</button></div>
       <p class="hint" id="forgotNote" role="status"></p>
     </form>
   </section>

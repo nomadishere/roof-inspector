@@ -402,7 +402,7 @@ $("saveBtn").addEventListener("click", saveToAccount);
 
 function setUser(user) {
   state.user = user || null;
-  $("acctBtn").textContent = user ? "My reports" : "Log in";
+  $("acctBtn").textContent = user ? "My reports" : "Log in / Sign up";
   $("acctSignedOut").hidden = !!user; $("acctSignedIn").hidden = !user;
   if (user) $("acctWho").textContent = user.email;
   $("saveRow").hidden = !(user && state.model);
@@ -438,8 +438,17 @@ $("newFromList").addEventListener("click", () => { state.model = null; state.rep
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("loginErr").textContent = ""; $("loginGo").disabled = true;
   try { const u = await acct.signIn($("loginEmail").value.trim(), $("loginPw").value); setUser(u); applyProfile(u); showAccount(); }
-  catch (ex) { $("loginErr").textContent = ex.message; }
+  catch (ex) { $("loginErr").textContent = ex.message + (/wrong/i.test(ex.message) ? " No account yet? Tap Create account." : ""); }
   finally { $("loginGo").disabled = false; }
+});
+$("signupGo").addEventListener("click", async () => {
+  const email = $("loginEmail").value.trim(), pw = $("loginPw").value; $("loginErr").textContent = ""; $("forgotNote").textContent = "";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $("loginErr").textContent = "Type your email first."; return; }
+  if (pw.length < 6) { $("loginErr").textContent = "Pick a password with at least 6 characters."; return; }
+  $("signupGo").disabled = true; $("signupGo").textContent = "Creating…";
+  try { const r = await acct.createOrSignIn(email, pw, {}); setUser(r.user); applyProfile(r.user); showAccount(); }
+  catch (ex) { $("loginErr").textContent = ex.message; }
+  finally { $("signupGo").disabled = false; $("signupGo").textContent = "Create account"; }
 });
 $("signOutBtn").addEventListener("click", async () => { await acct.signOut(); setUser(null); state.model = null; state.reportId = null; show("form"); });
 $("reportsList").addEventListener("click", async (e) => {
@@ -456,7 +465,7 @@ $("reportsList").addEventListener("click", async (e) => {
 $("forgotBtn").addEventListener("click", async () => {
   const email = $("loginEmail").value.trim(); $("loginErr").textContent = ""; $("forgotNote").textContent = "";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $("loginErr").textContent = "Type your email above first, then tap Forgot password."; return; }
-  try { await acct.sendReset(email); $("forgotNote").textContent = "Check your email for a link to choose a new password."; }
+  try { await acct.sendReset(email); $("forgotNote").textContent = "If this email has a Roofly account, a reset link is on its way. Nothing in a few minutes? You may not have a Roofly account yet: pick a password and tap Create account."; }
   catch (e) { $("loginErr").textContent = "Couldn't send the reset email right now. " + e.message; }
 });
 acct.sb.auth.onAuthStateChange((event, session) => {
