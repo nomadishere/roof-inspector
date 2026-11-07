@@ -82,6 +82,7 @@ table.t input{width:92px!important;display:inline-block!important;margin:0!impor
     <section class="card">
       <h3 style="margin:0 0 4px">Edge lengths</h3>
       <p class="note noprint" style="margin:0 0 8px">Traced from the photo. Tap a number to correct it; the materials update, and Roofly learns from your fix to trace future roofs better.</p>
+      <label class="noprint" style="margin:0 0 10px">Total roof area (sq ft) <span class="note" id="areaHint"></span><input id="areaIn" inputmode="decimal" style="max-width:180px"></label>
       <table class="t" id="edges"></table>
       <label class="noprint" style="margin-top:10px">Where do your corrected numbers come from?
         <select id="src"><option value="photo">I fixed them from the photo</option><option value="tape">Tape-measured on site</option><option value="eagleview">From an EagleView report</option></select></label>
@@ -172,16 +173,17 @@ function render() {
   try { localStorage.setItem("roofly.measure.last", JSON.stringify({ address: M.formatted, at: Date.now(), roof: M.roof, LEN, facets: M.facets, sys: mat.sys, waste: mat.w })); } catch {}
 }
 // ---- learning: every correction is saved so future traces improve ----
-let RAW = {}, AUTO = {}, KEY = "", learnT = null;
+let RAW = {}, AUTO = {}, KEY = "", learnT = null, AREA_FIXED = false;
+$("areaIn").addEventListener("input", () => { const v = +$("areaIn").value; if (!M || !(v > 50)) return; M.roof.areaFt2 = v; AREA_FIXED = true; renderNoEdges(); const kp = $("kpis").children; if (kp[0]) kp[0].querySelector("b").textContent = fmt(v) + " sq ft"; if (kp[1]) kp[1].querySelector("b").textContent = fmt(v / 100, 1); });
 function saveCorrection() {
   clearTimeout(learnT);
   learnT = setTimeout(async () => {
-    const changed = Object.keys(NAMES).some((t) => Math.abs((LEN[t] || 0) - (AUTO[t] || 0)) >= 1);
+    const changed = AREA_FIXED || Object.keys(NAMES).some((t) => Math.abs((LEN[t] || 0) - (AUTO[t] || 0)) >= 1);
     if (!changed && $("src").value === "photo") return;
     const d = M.imageryDate || {};
     try {
       await fetch(SUPABASE_URL + "/rest/v1/rpc/ri_save_correction", { method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON },
-        body: JSON.stringify({ p: { client_key: KEY, address: M.formatted, lat: M.location?.lat, lng: M.location?.lng, quality: M.quality || "", style: M.edges?.style || "", area_ft2: Math.round(M.roof.areaFt2), pitch: fmt(p12(pitchInfo(M).steep || pitchInfo(M).avg), 1) + "/12", traced: RAW, corrected: LEN, source: $("src").value } }) });
+        body: JSON.stringify({ p: { client_key: KEY, address: M.formatted, lat: M.location?.lat, lng: M.location?.lng, quality: M.quality || "", style: M.edges?.style || "", area_ft2: Math.round(M.roof.areaFt2), pitch: fmt(p12(pitchInfo(M).steep || pitchInfo(M).avg), 1) + "/12", traced: { ...RAW, area: Math.round(M.roof.rawAreaFt2 || M.roof.areaFt2) }, corrected: { ...LEN, ...(AREA_FIXED ? { area: Math.round(M.roof.areaFt2) } : {}) }, source: $("src").value } }) });
       $("learnNote").textContent = "Thanks. Roofly saved your correction and will use it to trace future roofs better.";
     } catch {}
   }, 1500);
@@ -204,7 +206,9 @@ async function measure(address) {
     const r = await fetch(FN + "ri-measure", { method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON }, body: JSON.stringify({ address }) });
     const d = await r.json().catch(() => ({ error: "BAD", message: "Something went wrong. Please try again." }));
     if (d.error) throw new Error(d.message || "Couldn't measure this roof.");
-    M = d; RAW = lengths(M, { raw: true }); LEN = lengths(M); AUTO = { ...LEN };
+    M = d; RAW = lengths(M, { raw: true }); LEN = lengths(M); AUTO = { ...LEN }; AREA_FIXED = false;
+    $("areaIn").value = Math.round(M.roof.areaFt2);
+    $("areaHint").textContent = M.areaAdj ? (M.areaAdj.kind === "buffer" ? `(includes +5% safety buffer; measured ${fmt(M.roof.rawAreaFt2)}). Have an EagleView or tape number? Type it here.` : `(adjusted ${Math.round((M.areaAdj.f - 1) * 100)}% from ${M.areaAdj.n} checked roofs)`) : "";
     KEY = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
     const lt = Object.entries(M.calib || {});
     $("learnNote").textContent = lt.length ? "Adjusted using what past corrections taught Roofly: " + lt.map(([t, c]) => `${NAMES[t].toLowerCase()} ${c.f > 1 ? "+" : ""}${Math.round((c.f - 1) * 100)}% (${c.n} roofs)`).join(", ") + "." : "";

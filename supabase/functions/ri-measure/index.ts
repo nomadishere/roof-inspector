@@ -62,15 +62,18 @@ async function learned(quality: string) {
     }
     const out: Record<string, { f: number; n: number }> = {};
     for (const t in r) { const v = r[t].sort((x, y) => x - y); const n = list.filter((c) => +c.traced?.[t] >= 10 && c.corrected?.[t] != null).length; if (n < 3) continue;
-      const med = v[Math.floor(v.length / 2)]; if (Math.abs(med - 1) < 0.03) continue; out[t] = { f: Math.max(0.75, Math.min(1.35, +med.toFixed(3))), n }; }
+      const med = v[Math.floor(v.length / 2)]; if (Math.abs(med - 1) < 0.03 && t !== "area") continue; // a near-1 AREA factor still counts: it means Roofly is accurate and the buffer can go out[t] = { f: Math.max(0.75, Math.min(1.35, +med.toFixed(3))), n }; }
     return out;
   };
   const same = build(rows.filter((c: any) => (c.quality || "").toUpperCase() === String(quality || "").toUpperCase()));
   const all = build(rows);
   const calib: Record<string, { f: number; n: number }> = { ...all, ...same };
   const NAME: any = { eave: "eaves", rake: "rakes", ridge: "ridges", hip: "hips", valley: "valleys", edge: "low-slope edges", parapet: "parapets", flashing: "wall flashing" };
+  // roof AREA: learned factor once 3+ checked roofs agree; until then a +5% safety buffer (Justin, Nov 7 2026)
+  const areaAdj = calib.area ? { f: calib.area.f, n: calib.area.n, kind: "learned" } : { f: 1.05, n: 0, kind: "buffer" };
+  delete calib.area;
   const lessons = Object.entries(calib).map(([t, { f, n }]) => `${NAME[t] || t}: your traces came out ${Math.round(Math.abs(f - 1) * 100)}% too ${f > 1 ? "SHORT" : "LONG"} (people corrected ${n} roofs)`);
-  return { calib, lessons: lessons.length ? `\nLESSONS FROM PEOPLE CORRECTING YOUR PAST TRACES (do better this time): ${lessons.join("; ")}. ${Object.values(calib).some((x) => x.f > 1) ? "You tend to miss parts of edges: follow every edge all the way to its corners." : ""}` : "" };
+  return { calib, areaAdj, lessons: lessons.length ? `\nLESSONS FROM PEOPLE CORRECTING YOUR PAST TRACES (do better this time): ${lessons.join("; ")}. ${Object.values(calib).some((x) => x.f > 1) ? "You tend to miss parts of edges: follow every edge all the way to its corners." : ""}` : "" };
 }
 
 Deno.serve(async (req) => {
@@ -158,7 +161,7 @@ Deno.serve(async (req) => {
     }
     return { err: "AI busy" };
   };
-  const L = await learned(sd.imageryQuality).catch(() => ({ calib: {}, lessons: "" }));
+  const L: any = await learned(sd.imageryQuality).catch(() => ({ calib: {}, areaAdj: { f: 1.05, n: 0, kind: "buffer" }, lessons: "" }));
   if (akey) {
     const info = `Scale: 1 pixel = ${fpp.toFixed(3)} ft. Google measured this roof's footprint (seen from above) at about ${Math.round(groundFt2)} sq ft, which is about ${Math.round(groundFt2 / (fpp * fpp))} square pixels in this image. Google detected ${facets.length} roof planes (pixel boxes [x,y,width,height], pitch in degrees, facing = azimuth):\n` +
       facets.map((f: any) => `#${f.n}: box ${JSON.stringify(f.box)}, pitch ${f.pitchDeg.toFixed(1)}°, facing ${Math.round(f.azimuthDeg)}°, ${Math.round(f.areaFt2)} sq ft`).join("\n") + L.lessons;
@@ -181,8 +184,8 @@ Deno.serve(async (req) => {
   return out({
     formatted, location: c, zoom: z, ftPerPx: fpp,
     quality: sd.imageryQuality, imageryDate: sd.imageryDate,
-    roof: { areaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639, groundFt2: (sp.wholeRoofStats?.groundAreaMeters2 || 0) * 10.7639 },
-    facets, edges, check, calib: L.calib,
+    roof: { areaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639 * L.areaAdj.f, rawAreaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639, groundFt2: (sp.wholeRoofStats?.groundAreaMeters2 || 0) * 10.7639 },
+    facets, edges, check, calib: L.calib, areaAdj: L.areaAdj,
     image: "data:image/png;base64," + b64,
   });
 });

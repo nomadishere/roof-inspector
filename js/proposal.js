@@ -104,7 +104,7 @@ export function renderProposal(m, st = {}) {
         <table><tr><th>Face</th><th>Pitch</th><th>Facing</th><th class="num">Sq ft</th></tr>${(MS.facets || []).map((f) => `<tr><td>${f.n}</td><td>${esc(f.pitch)}</td><td>${esc(f.facing)}</td><td class="num">${fmt(f.areaFt2)}</td></tr>`).join("")}</table></details>
       ${(MS.materials || []).map((mt) => `<details><summary>Materials list${(MS.materials || []).length > 1 ? " — " + esc(mt.roofType) : ""}</summary><p class="note">${esc(SYS_NAMES[mt.sys] || mt.roofType)}, full replacement, ${fmt(mt.squaresWaste, 1)} squares including ${mt.waste}% waste.</p>
         <table><tr><th>Item</th><th class="num">Qty</th></tr>${(mt.rows || []).map((r) => `<tr><td>${esc(r.item)}<div class="note">${esc(r.note)}</div></td><td class="num">${esc(r.qty)} ${esc(r.unit)}</td></tr>`).join("")}</table></details>`).join("")}
-      <p class="note" style="margin-top:8px">Measured from aerial imagery and field-verified before materials are ordered.${learned}</p></div>`);
+      <p class="note" style="margin-top:8px">Measured from aerial imagery and field-verified before materials are ordered.${learned}${(MS.areaAdj ? (MS.areaAdj.kind === "buffer" ? ` Roof area includes a +5% safety buffer (measured ${fmt(MS.rawAreaFt2)} sq ft) until Roofly has been checked against 3+ measured roofs.` : ` Roof area adjusted ${MS.areaAdj.f > 1 ? "+" : ""}${Math.round((MS.areaAdj.f - 1) * 100)}% using ${MS.areaAdj.n} roofs checked against EagleView or a tape measure.`) : "")}</p></div>`);
   } else if (MS && MS.error) {
     out.push(`<div class="sec">${hdr("Roof measurements")}<div class="box">${esc(MS.error)} Quantities below are estimated from the walkthrough and will be measured on site.</div></div>`);
   }

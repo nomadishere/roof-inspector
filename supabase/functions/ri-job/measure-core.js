@@ -90,6 +90,7 @@ export function reportSummary(m, roofTypes) {
   return {
     address: m.formatted, imagery: `${m.imageryDate?.month || "?"}/${m.imageryDate?.year || "?"}`, quality: String(m.quality || "").toLowerCase(),
     areaFt2: Math.round(m.roof.areaFt2), squares: +(m.roof.areaFt2 / 100).toFixed(1), pitch: pitchText(m), faces: (m.facets || []).length,
+    areaAdj: m.areaAdj || null, rawAreaFt2: Math.round(m.roof.rawAreaFt2 || m.roof.areaFt2),
     learned: Object.entries(m.calib || {}).map(([t, c]) => ({ type: t, factor: c.f, roofs: c.n })),
     style: m.edges?.style || "", counts: m.edges?.counts || {}, notes: m.edges?.notes || "", confidence: m.edges?.confidence || "",
     lengths: LEN,
@@ -103,7 +104,7 @@ export function reportSummary(m, roofTypes) {
 export function summaryText(s, roofType) {
   const mat = s.materials.find((x) => x.roofType === roofType) || s.materials[0];
   return [`MEASURED FROM AERIAL IMAGERY (Google roof data, imagery ${s.imagery}, ${s.quality} quality; field-verify before ordering):`,
-    `Roof area ${fmt(s.areaFt2)} sq ft = ${s.squares} squares; ${mat.squaresWaste} squares with ${mat.waste}% waste. Main pitch ${s.pitch}. ${s.faces} roof faces. Style: ${s.style || "n/a"}.`,
+    `Roof area ${fmt(s.areaFt2)} sq ft${s.areaAdj && s.areaAdj.kind === "buffer" ? " (includes a +5% measurement safety buffer)" : s.areaAdj ? ` (adjusted ${Math.round((s.areaAdj.f - 1) * 100)}% from ${s.areaAdj.n} checked roofs)` : ""} = ${s.squares} squares; ${mat.squaresWaste} squares with ${mat.waste}% waste. Main pitch ${s.pitch}. ${s.faces} roof faces. Style: ${s.style || "n/a"}.`,
     "Edge lengths (ft): " + Object.keys(NAMES).filter((k) => s.lengths[k]).map((k) => `${NAMES[k]} ${fmt(s.lengths[k])}`).join(", ") + ".",
     "Seen on the photo: " + (Object.entries(s.counts).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ") || "nothing counted") + ".",
     `Materials for a full ${mat.roofType} replacement: ` + mat.rows.map((r) => `${r.item}: ${r.qty} ${r.unit}`).join("; ") + "."].join("\n");
