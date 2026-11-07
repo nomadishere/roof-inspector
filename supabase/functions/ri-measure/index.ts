@@ -62,7 +62,7 @@ async function learned(quality: string) {
     }
     const out: Record<string, { f: number; n: number }> = {};
     for (const t in r) { const v = r[t].sort((x, y) => x - y); const n = list.filter((c) => +c.traced?.[t] >= 10 && c.corrected?.[t] != null).length; if (n < 3) continue;
-      const med = v[Math.floor(v.length / 2)]; if (Math.abs(med - 1) < 0.03 && t !== "area") continue; // a near-1 AREA factor still counts: it means Roofly is accurate and the buffer can go out[t] = { f: Math.max(0.75, Math.min(1.35, +med.toFixed(3))), n }; }
+      const med = v[Math.floor(v.length / 2)]; if (Math.abs(med - 1) < 0.03 && t !== "area") continue; /* a near-1 AREA factor still counts: Roofly is accurate, so the buffer can go */ out[t] = { f: Math.max(0.75, Math.min(1.35, +med.toFixed(3))), n }; }
     return out;
   };
   const same = build(rows.filter((c: any) => (c.quality || "").toUpperCase() === String(quality || "").toUpperCase()));
