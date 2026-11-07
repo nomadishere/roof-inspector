@@ -24,13 +24,14 @@ export function pitchText(m) {
   return pi.lowShare > 0.6 ? "Low-slope" : fmt(p12(pi.steep || pi.avg), 1) + "/12";
 }
 
-// true lengths in feet per edge type (rakes, hips and valleys corrected for pitch); also sets l._len on each line
-export function lengths(m) {
+// true lengths in feet per edge type (rakes, hips and valleys corrected for pitch); also sets l._len on each line.
+// m.calib (learned from past corrections) adjusts each edge type unless raw is set.
+export function lengths(m, { raw = false } = {}) {
   const k = p12(pitchInfo(m).steep) / 12, pf = Math.sqrt(1 + k * k), hf = Math.sqrt(1 + (k * k) / 2), t = {};
   for (const l of m.edges?.lines || []) {
     const pl = Math.hypot(l.x2 - l.x1, l.y2 - l.y1) * m.ftPerPx;
-    const len = pl * (l.type === "rake" ? pf : l.type === "hip" || l.type === "valley" ? hf : 1);
-    t[l.type] = (t[l.type] || 0) + len; l._len = len;
+    const len = pl * (l.type === "rake" ? pf : l.type === "hip" || l.type === "valley" ? hf : 1) * (raw ? 1 : m.calib?.[l.type]?.f || 1);
+    t[l.type] = (t[l.type] || 0) + len; if (!raw) l._len = len;
   }
   for (const x in t) t[x] = Math.round(t[x]);
   return t;
@@ -89,6 +90,7 @@ export function reportSummary(m, roofTypes) {
   return {
     address: m.formatted, imagery: `${m.imageryDate?.month || "?"}/${m.imageryDate?.year || "?"}`, quality: String(m.quality || "").toLowerCase(),
     areaFt2: Math.round(m.roof.areaFt2), squares: +(m.roof.areaFt2 / 100).toFixed(1), pitch: pitchText(m), faces: (m.facets || []).length,
+    learned: Object.entries(m.calib || {}).map(([t, c]) => ({ type: t, factor: c.f, roofs: c.n })),
     style: m.edges?.style || "", counts: m.edges?.counts || {}, notes: m.edges?.notes || "", confidence: m.edges?.confidence || "",
     lengths: LEN,
     facets: (m.facets || []).map((f) => ({ n: f.n, pitch: fmt(p12(f.pitchDeg), 1) + "/12", deg: Math.round(f.pitchDeg), facing: dirn(f.azimuthDeg), areaFt2: Math.round(f.areaFt2) })),

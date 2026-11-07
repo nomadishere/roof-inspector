@@ -81,8 +81,11 @@ table.t input{width:92px!important;display:inline-block!important;margin:0!impor
 
     <section class="card">
       <h3 style="margin:0 0 4px">Edge lengths</h3>
-      <p class="note noprint" style="margin:0 0 8px">Traced from the photo. Tap a number to correct it; the materials update.</p>
+      <p class="note noprint" style="margin:0 0 8px">Traced from the photo. Tap a number to correct it; the materials update, and Roofly learns from your fix to trace future roofs better.</p>
       <table class="t" id="edges"></table>
+      <label class="noprint" style="margin-top:10px">Where do your corrected numbers come from?
+        <select id="src"><option value="photo">I fixed them from the photo</option><option value="tape">Tape-measured on site</option><option value="eagleview">From an EagleView report</option></select></label>
+      <p class="note noprint" id="learnNote" style="margin:6px 0 0"></p>
     </section>
 
     <section class="card">
@@ -109,6 +112,7 @@ table.t input{width:92px!important;display:inline-block!important;margin:0!impor
 <script type="module">
 import { FN, SUPABASE_ANON } from "../js/config.js";
 import { COL, NAMES, p12, dirn, fmt, pitchInfo, lengths, materials as matsFor, wasteFor } from "../js/measure-core.js";
+import { SUPABASE_URL } from "../js/config.js";
 const $ = (id) => document.getElementById(id);
 let M = null, LEN = {}, IMG = null;
 
@@ -167,8 +171,25 @@ function render() {
   draw(); crmSave();
   try { localStorage.setItem("roofly.measure.last", JSON.stringify({ address: M.formatted, at: Date.now(), roof: M.roof, LEN, facets: M.facets, sys: mat.sys, waste: mat.w })); } catch {}
 }
+// ---- learning: every correction is saved so future traces improve ----
+let RAW = {}, AUTO = {}, KEY = "", learnT = null;
+function saveCorrection() {
+  clearTimeout(learnT);
+  learnT = setTimeout(async () => {
+    const changed = Object.keys(NAMES).some((t) => Math.abs((LEN[t] || 0) - (AUTO[t] || 0)) >= 1);
+    if (!changed && $("src").value === "photo") return;
+    const d = M.imageryDate || {};
+    try {
+      await fetch(SUPABASE_URL + "/rest/v1/rpc/ri_save_correction", { method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON },
+        body: JSON.stringify({ p: { client_key: KEY, address: M.formatted, lat: M.location?.lat, lng: M.location?.lng, quality: M.quality || "", style: M.edges?.style || "", area_ft2: Math.round(M.roof.areaFt2), pitch: fmt(p12(pitchInfo(M).steep || pitchInfo(M).avg), 1) + "/12", traced: RAW, corrected: LEN, source: $("src").value } }) });
+      $("learnNote").textContent = "Thanks. Roofly saved your correction and will use it to trace future roofs better.";
+    } catch {}
+  }, 1500);
+}
+$("src").addEventListener("change", () => M && saveCorrection());
+
 function renderNoEdges() { // update everything except the edge inputs (so typing isn't interrupted)
-  const mat = materials(); crmSave();
+  const mat = materials(); crmSave(); saveCorrection();
   $("mats").innerHTML = `<tr><th>Item</th><th style="text-align:right">Qty</th><th>Unit</th></tr>` + mat.rows.map(([a, q, u, n]) => `<tr><td>${a}<div class="note">${n}</div></td><td class="n">${q}</td><td>${u}</td></tr>`).join("");
   const kp = $("kpis").children; if (kp[6]) kp[6].querySelector("b").textContent = fmt(pitchInfo(M).lowShare > 0.6 ? (LEN.edge || 0) + (LEN.parapet || 0) + (LEN.flashing || 0) + (LEN.eave || 0) + (LEN.rake || 0) : (LEN.eave || 0) + (LEN.rake || 0)) + " ft"; if (kp[7]) kp[7].querySelector("b").textContent = fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft";
   if (kp[2]) { kp[2].querySelector("b").textContent = fmt(mat.sqw, 1); kp[2].querySelector("span").textContent = `Squares + ${mat.w}% waste`; }
@@ -183,7 +204,10 @@ async function measure(address) {
     const r = await fetch(FN + "ri-measure", { method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON }, body: JSON.stringify({ address }) });
     const d = await r.json().catch(() => ({ error: "BAD", message: "Something went wrong. Please try again." }));
     if (d.error) throw new Error(d.message || "Couldn't measure this roof.");
-    M = d; LEN = lengths(M);
+    M = d; RAW = lengths(M, { raw: true }); LEN = lengths(M); AUTO = { ...LEN };
+    KEY = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+    const lt = Object.entries(M.calib || {});
+    $("learnNote").textContent = lt.length ? "Adjusted using what past corrections taught Roofly: " + lt.map(([t, c]) => `${NAMES[t].toLowerCase()} ${c.f > 1 ? "+" : ""}${Math.round((c.f - 1) * 100)}% (${c.n} roofs)`).join(", ") + "." : "";
     IMG = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = M.image; });
     $("status").textContent = ""; $("out").hidden = false; render();
     $("out").scrollIntoView({ behavior: "smooth", block: "start" });

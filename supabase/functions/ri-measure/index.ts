@@ -45,6 +45,34 @@ Return ONLY JSON:
  "confidence":"high|medium|low",
  "notes":"one or two sentences: anything hard to see (trees, shadows, old photo) that a person should double check"}`;
 
+// ---- Learning from corrections ----
+// People fix traced edge lengths on the measure page (or enter tape / EagleView numbers). For each edge type we take the
+// median of corrected ÷ traced over past roofs (tape and EagleView count 3×), prefer roofs with the same photo quality,
+// and only use a type once 3+ roofs agree. Factors are capped at 0.75–1.35 so a few bad entries can't wreck a measurement.
+async function learned(quality: string) {
+  const { data } = await db.from("ri_corrections").select("traced,corrected,source,quality").gte("updated_at", new Date(Date.now() - 365 * 864e5).toISOString()).limit(2000);
+  const rows = data || [];
+  const build = (list: any[]) => {
+    const r: Record<string, number[]> = {};
+    for (const c of list) for (const t of Object.keys(c.corrected || {})) {
+      const a = +c.traced?.[t] || 0, b = +c.corrected[t] || 0;
+      if (a < 10 || b <= 0) continue;
+      const q = b / a; if (q < 0.4 || q > 2.5) continue;
+      for (let w = 0; w < (c.source === "tape" || c.source === "eagleview" ? 3 : 1); w++) (r[t] ||= []).push(q);
+    }
+    const out: Record<string, { f: number; n: number }> = {};
+    for (const t in r) { const v = r[t].sort((x, y) => x - y); const n = list.filter((c) => +c.traced?.[t] >= 10 && c.corrected?.[t] != null).length; if (n < 3) continue;
+      const med = v[Math.floor(v.length / 2)]; if (Math.abs(med - 1) < 0.03) continue; out[t] = { f: Math.max(0.75, Math.min(1.35, +med.toFixed(3))), n }; }
+    return out;
+  };
+  const same = build(rows.filter((c: any) => (c.quality || "").toUpperCase() === String(quality || "").toUpperCase()));
+  const all = build(rows);
+  const calib: Record<string, { f: number; n: number }> = { ...all, ...same };
+  const NAME: any = { eave: "eaves", rake: "rakes", ridge: "ridges", hip: "hips", valley: "valleys", edge: "low-slope edges", parapet: "parapets", flashing: "wall flashing" };
+  const lessons = Object.entries(calib).map(([t, { f, n }]) => `${NAME[t] || t}: your traces came out ${Math.round(Math.abs(f - 1) * 100)}% too ${f > 1 ? "SHORT" : "LONG"} (people corrected ${n} roofs)`);
+  return { calib, lessons: lessons.length ? `\nLESSONS FROM PEOPLE CORRECTING YOUR PAST TRACES (do better this time): ${lessons.join("; ")}. ${Object.values(calib).some((x) => x.f > 1) ? "You tend to miss parts of edges: follow every edge all the way to its corners." : ""}` : "" };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return out({ error: "POST only" }, 405);
@@ -70,7 +98,11 @@ Deno.serve(async (req) => {
   if (address && !(isFinite(lat) && isFinite(lng) && b.lat != null)) {
     const g = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`).then((r) => r.json());
     if (!g.results?.[0]) return out({ error: "NOT_FOUND", message: "Couldn't find that address. Check the spelling, or add the city and state." });
-    lat = g.results[0].geometry.location.lat; lng = g.results[0].geometry.location.lng; formatted = g.results[0].formatted_address;
+    const g0 = g.results[0], ty: string[] = g0.types || [];
+    // a town, ZIP or street name alone points at the middle of an area, not a building: refuse instead of measuring the wrong roof
+    const precise = ["street_address", "premise", "subpremise", "establishment", "point_of_interest"].some((t) => ty.includes(t)) && g0.geometry?.location_type !== "APPROXIMATE";
+    if (!precise) return out({ error: "NOT_PRECISE", message: `Couldn't pin down the exact building for "${address}" (Google only found ${g0.formatted_address}). Add the street number and street name, e.g. 123 Main St, Livingston, MT.`, formatted: g0.formatted_address });
+    lat = g0.geometry.location.lat; lng = g0.geometry.location.lng; formatted = g0.formatted_address;
   }
   if (!isFinite(lat) || !isFinite(lng)) return out({ error: "NO_LOCATION", message: "Enter an address." }, 400);
 
@@ -118,9 +150,10 @@ Deno.serve(async (req) => {
     }
     return { err: "AI busy" };
   };
+  const L = await learned(sd.imageryQuality).catch(() => ({ calib: {}, lessons: "" }));
   if (akey) {
     const info = `Scale: 1 pixel = ${fpp.toFixed(3)} ft. Google measured this roof's footprint (seen from above) at about ${Math.round(groundFt2)} sq ft, which is about ${Math.round(groundFt2 / (fpp * fpp))} square pixels in this image. Google detected ${facets.length} roof planes (pixel boxes [x,y,width,height], pitch in degrees, facing = azimuth):\n` +
-      facets.map((f: any) => `#${f.n}: box ${JSON.stringify(f.box)}, pitch ${f.pitchDeg.toFixed(1)}°, facing ${Math.round(f.azimuthDeg)}°, ${Math.round(f.areaFt2)} sq ft`).join("\n");
+      facets.map((f: any) => `#${f.n}: box ${JSON.stringify(f.box)}, pitch ${f.pitchDeg.toFixed(1)}°, facing ${Math.round(f.azimuthDeg)}°, ${Math.round(f.areaFt2)} sq ft`).join("\n") + L.lessons;
     const first = await ask(EDGE_PROMPT(info));
     if (first.err) edges = { lines: [], notes: "Automatic tracing failed (" + first.err + "). Add the edges by hand." };
     else {
@@ -141,7 +174,7 @@ Deno.serve(async (req) => {
     formatted, location: c, zoom: z, ftPerPx: fpp,
     quality: sd.imageryQuality, imageryDate: sd.imageryDate,
     roof: { areaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639, groundFt2: (sp.wholeRoofStats?.groundAreaMeters2 || 0) * 10.7639 },
-    facets, edges, check,
+    facets, edges, check, calib: L.calib,
     image: "data:image/png;base64," + b64,
   });
 });

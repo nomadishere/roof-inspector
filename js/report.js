@@ -187,7 +187,7 @@ export function render(m, { editable = true } = {}) {
         ? [["Roof outline (edges + walls)", fmt((LEN.edge || 0) + (LEN.parapet || 0) + (LEN.flashing || 0) + (LEN.eave || 0) + (LEN.rake || 0)) + " ft"], ["Wall flashing", fmt(LEN.flashing || 0) + " ft"], ["Parapet walls", fmt(LEN.parapet || 0) + " ft"]]
         : [["Drip edge (eaves + rakes)", fmt((LEN.eave || 0) + (LEN.rake || 0)) + " ft"], ["Ridges + hips", fmt((LEN.ridge || 0) + (LEN.hip || 0)) + " ft"], ["Valleys", fmt(LEN.valley || 0) + " ft"]])];
     add("Roof Measurements", () => `
-      <h2 class="title">Roof Measurements</h2><p class="sub">Measured from aerial imagery (${esc(MS.imagery)}${MS.quality ? ", " + esc(MS.quality) + " quality" : ""})${MS.style ? " · " + esc(MS.style) + " roof" : ""}</p>
+      <h2 class="title">Roof Measurements</h2><p class="sub">${esc(MS.address)} · measured from aerial imagery (${esc(MS.imagery)}${MS.quality ? ", " + esc(MS.quality) + " quality" : ""})${MS.style ? " · " + esc(MS.style) + " roof" : ""}</p>
       <div class="aerialwrap">${svg}</div>
       <div class="mlegend">${legend}</div>
       <div class="kpis">${kp.map(([a, v]) => `<div class="kpi"><b>${esc(v)}</b><span>${esc(a)}</span></div>`).join("")}</div>`,
@@ -201,7 +201,7 @@ export function render(m, { editable = true } = {}) {
       ${(MS.materials || []).map((mt, mi) => `<h3>Materials${(MS.materials || []).length > 1 ? " — " + esc(mt.roofType) : ""}</h3><p class="sub">${esc(SYS_NAMES[mt.sys] || mt.roofType)}, full replacement, ${fmt(mt.squaresWaste, 1)} squares incl. ${mt.waste}% waste.</p>
         <table><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th>Based on</th></tr>
         ${(mt.rows || []).map((r, ri) => `<tr><td>${esc(r.item)}</td><td class="num">${E(`measure.materials.${mi}.rows.${ri}.qty`, esc(r.qty))}</td><td>${esc(r.unit)}</td><td class="sub">${esc(r.note)}</td></tr>`).join("")}</table>`).join("")}
-      <p class="sub">${esc(ck)} ${MS.notes ? "Note: " + esc(MS.notes) : ""} Measurements are from aerial imagery and are field-verified before materials are ordered.</p>`);
+      <p class="sub">${esc(ck)} ${(MS.learned || []).length ? "Edge lengths adjusted using lessons from past corrected roofs: " + MS.learned.map((x) => `${(NAMES[x.type] || x.type).toLowerCase()} ${x.factor > 1 ? "+" : ""}${Math.round((x.factor - 1) * 100)}% (${x.roofs} roofs)`).join(", ") + ". " : ""}${MS.notes ? "Note: " + esc(MS.notes) : ""} Measurements are from aerial imagery and are field-verified before materials are ordered.</p>`);
   } else if (MS && MS.error) {
     add("Roof Measurements", () => `<h2 class="title">Roof Measurements</h2>
       <div class="box">${esc(MS.error)} The quantities in the proposals below are estimated from the walkthrough video and are marked "(confirm)" until the roof is measured on site.</div>`);
