@@ -121,6 +121,8 @@ $("form").addEventListener("submit", async (e) => {
   const roofTypes = [...document.querySelectorAll("#roofTypes input:checked")].map((i) => i.value);
   if (!state.videos.length && !state.photos.length) return (err.textContent = "Add at least one video or photo.");
   if (!$("address").value.trim() && !QUICK) return (err.textContent = "Add the property address."), $("address").focus();
+  // the city/state must be typed: "324 North 2nd Street" alone matched a house in Texas
+  if ($("address").value.trim() && !/\b\d{5}\b|[\s,](AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\.?\s*$|\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\s*$/i.test($("address").value.trim())) return (err.textContent = "Add the city and state to the address (e.g. 324 N 2nd St, Livingston, MT) so Roofly can measure the right roof from the air."), $("address").focus();
   if (!roofTypes.length) return (err.textContent = "Check at least one roof type.");
   if (!$("company").value.trim()) return (err.textContent = "Add your company name."), $("company").focus();
 

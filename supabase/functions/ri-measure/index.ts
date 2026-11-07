@@ -101,6 +101,14 @@ Deno.serve(async (req) => {
     const g0 = g.results[0], ty: string[] = g0.types || [];
     // a town, ZIP or street name alone points at the middle of an area, not a building: refuse instead of measuring the wrong roof
     const precise = ["street_address", "premise", "subpremise", "establishment", "point_of_interest"].some((t) => ty.includes(t)) && g0.geometry?.location_type !== "APPROXIMATE";
+    // the town Google matched must be in what was typed (or the ZIP): "324 North 2nd Street" alone matched a house in Texas
+    const comp = (k: string) => (g0.address_components || []).find((c: any) => (c.types || []).includes(k));
+    const town = comp("locality") || comp("postal_town") || comp("administrative_area_level_3") || comp("sublocality");
+    const zip = comp("postal_code")?.long_name || "", typed = address.toLowerCase();
+    const townOk = !town || typed.includes(String(town.long_name).toLowerCase()) || typed.includes(String(town.short_name).toLowerCase()) || (zip && typed.includes(zip));
+    const st = comp("administrative_area_level_1");
+    const stateOk = !st || (zip && typed.includes(zip)) || typed.includes(String(st.long_name).toLowerCase()) || new RegExp(`(^|[\\s,])${String(st.short_name).toLowerCase()}([\\s,.]|$)`).test(typed);
+    if (precise && (!townOk || !stateOk)) return out({ error: "NO_TOWN", message: `Add the city and state to the address. "${address}" matched ${g0.formatted_address}, which may not be the right place.`, formatted: g0.formatted_address });
     if (!precise) return out({ error: "NOT_PRECISE", message: `Couldn't pin down the exact building for "${address}" (Google only found ${g0.formatted_address}). Add the street number and street name, e.g. 123 Main St, Livingston, MT.`, formatted: g0.formatted_address });
     lat = g0.geometry.location.lat; lng = g0.geometry.location.lng; formatted = g0.formatted_address;
   }
