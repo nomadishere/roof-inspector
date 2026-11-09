@@ -147,12 +147,14 @@ export function renderProposal(m, st = {}) {
         return `<label class="opt ${on ? "on" : ""}"><div class="top">${S ? "" : `<input type="radio" name="opt${ei}" data-ei="${ei}" value="${esc(o.key)}" ${on ? "checked" : ""}>`}<div style="flex:1;min-width:0"><div><span class="nm">${esc(o.name)}</span>${est.recommended === o.key ? `<span class="tier">Recommended</span>` : ""}</div>${o.subtitle ? `<div class="muted" style="font-size:13.5px">${esc(o.subtitle)}</div>` : ""}</div></div>
         <div class="scope"><table><thead><tr><th>Scope</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>
         ${(o.lines || []).map((l) => `<tr><td>${esc(l.desc)}</td><td class="num">${esc(+l.qty)} ${esc(l.unit || "")}</td><td class="num">${money((+l.qty || 0) * (+l.price || 0) * (margin.include ? 1 + (+margin.pct || 0) / 100 : 1))}</td></tr>`).join("")}
-        <tr class="total"><td colspan="2">${margin.include ? "TOTAL INVESTMENT" : "TOTAL (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr></tbody></table></div>
+        <tr class="total"><td colspan="2">${margin.include || m.formatVersion >= 2 ? "TOTAL INVESTMENT" : "TOTAL (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr></tbody></table></div>
         ${o.warranty || o.timeline ? `<p class="note" style="margin-top:8px">${o.warranty ? "<b>Warranty:</b> " + esc(o.warranty) + " " : ""}${o.timeline ? "<b>Schedule:</b> " + esc(o.timeline) : ""}</p>` : ""}</label>`; }).join("")}
       <div class="cols"><div class="box"><h4>Payment &amp; terms</h4>${esc(est.payment || m.terms || "50% deposit to schedule, balance due at substantial completion. Proposal good for 30 days.")}</div>
         <div class="box"><h4>Notes &amp; exclusions</h4><ul>${[...arr(est.assumptions), ...arr(est.exclusions)].map((x) => String(x).replace(/,?\s*before (overhead|profit)[^.]*/i, "")).filter((x) => !/overhead|profit/i.test(x)).slice(0, 12).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>
       ${est.quantities_note ? `<p class="note" style="margin-top:8px">${esc(est.quantities_note)}</p>` : ""}</div>`);
   });
+
+  if (m.addendum) out.push(`<div class="sec">${hdr("Terms & conditions")}<div style="white-space:pre-wrap;font-size:14px;line-height:1.5">${esc(m.addendum)}</div></div>`);
 
   // acceptance
   const all = []; ests.forEach((est, ei) => (est.options || []).forEach((o) => all.push({ ei, o, est })));
@@ -169,6 +171,6 @@ export function renderProposal(m, st = {}) {
   }
 
   out.push(`<div class="sec">${hdr("Questions?")}<div class="people"><div><b>${esc(b.preparedBy || company)}</b><br>${esc(company)}</div><div>${b.phone ? `<a href="tel:${esc(String(b.phone).replace(/[^\d+]/g, ""))}">${esc(b.phone)}</a><br>` : ""}${b.email ? `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a><br>` : ""}${b.website ? esc(b.website) : ""}</div></div>
-    <div class="ftr"><span>${b.tagline ? `<i>${esc(b.tagline)}</i>` : esc(company)}</span><span>Made with <a href="https://useroofly.com">Roofly</a></span></div></div></div>`);
+    <div class="ftr"><span>${b.tagline ? `<i>${esc(b.tagline)}</i>` : esc(company)}</span><span>Made with <a href="https://useroofly.com">Roofly</a> · Format v2</span></div></div></div>`);
   return out.join("");
 }

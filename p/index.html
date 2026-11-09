@@ -17,13 +17,25 @@
 <div id="app"><div class="wrap"><div class="titlecard" style="margin-top:20px"><h1>Loading…</h1></div></div></div>
 <script type="module">
 import { SUPABASE_URL, SUPABASE_ANON, SHARE_BASE, FONTS } from "../js/config.js";
-import { renderProposal, brandStyle, optionTotals } from "../js/proposal.js?v=c4";
+import { renderProposal, brandStyle, optionTotals } from "../js/proposal.js?v=c6";
 import { circle, imageToCanvas, jpeg } from "../js/frames.js";
 const $ = (id) => document.getElementById(id);
 const Q = new URLSearchParams(location.search);
 const shareId = Q.get("id") || "", jobId = Q.get("job") || "";
 const REF = /^[a-z0-9]{8,20}$/.test(shareId) ? shareId : /^[0-9a-f-]{36}$/.test(jobId) ? jobId : "";
-let M = null, ST = { pick: {}, signed: null };
+let M = null, ST = { pick: {}, signed: null }, CD = null;
+const CT = /^[0-9a-f]{40,80}$/.test(Q.get("ct") || "") ? Q.get("ct") : "";
+const CRM_SB = "https://wwqjoagdnclaylllzcut.supabase.co", CRM_KEY = "sb_publishable_AVIpI00DFiYwugP16-wMWQ_qENLObrc";
+async function crmCall(action, p) {
+  const r = await fetch(CRM_SB + "/rest/v1/rpc/crm_portal", { method: "POST", headers: { apikey: CRM_KEY, Authorization: "Bearer " + CRM_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_token: CT, p_action: action, p: p || {} }) });
+  const d = await r.json().catch(() => null); if (!r.ok) throw new Error((d && d.message) || "Something went wrong. Please call 406-609-9950."); return d;
+}
+const m2 = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function crmApply() {
+  const o = (CD.options || [])[0], tot = o ? +o.total : 0, MS = M.measure || {};
+  if (CD.addendum) M.addendum = String(CD.addendum).replace(/\{address\}/g, (M.job && M.job.address) || "the project address").replace(/\{area\}/g, MS.areaFt2 ? Math.round(MS.areaFt2).toLocaleString("en-US") + " sq ft" : "the measured area").replace(/\{squares\}/g, MS.squares ? MS.squares + " squares" : "the measured squares").replace(/\{deposit\}/g, m2(tot / 2)).replace(/\{balance\}/g, m2(tot / 2));
+  ST.signed = CD.signed ? { name: CD.signed.name, option_name: (o && o.name) || "Full Roof Replacement", total: CD.signed.total, created_at: new Date().toISOString() } : null;
+}
 
 async function rpc(fn, body) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -63,6 +75,7 @@ async function sign() {
   if (!$("ag").checked) return (E.textContent = "Please check the box to accept.");
   const b = $("go"); b.disabled = true; b.textContent = "Signing…";
   try {
+    if (CD) { await crmCall("sign", { estimate_id: CD.options[0].id, name: nm, email: $("em").value.trim(), signature: sigPng(), ua: navigator.userAgent }); CD = await crmCall("view"); crmApply(); } else
     ST.signed = await rpc("ri_sign", { p: { ref: REF, option_key: `${ei}:${o.key}`, option_name: o.name + ((M.estimates || []).length > 1 ? " (" + est.roofType + ")" : ""), total: Math.round(optionTotals(o, M.margin || {}).total), name: nm, email: $("em").value.trim(), signature: sigPng(), ua: navigator.userAgent } });
     draw(); scrollTo({ top: 0, behavior: "smooth" });
   } catch (e) { E.textContent = e.message; b.disabled = false; b.textContent = "Sign & accept"; }
@@ -76,7 +89,7 @@ async function main() {
   document.documentElement.setAttribute("style", bs.vars);
   if (bs.google) document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${bs.google}&display=swap">`);
   document.title = `${M.brand?.company || "Roof"} · ${M.job?.address || "Roof Inspection & Proposal"}`;
-  ST.signed = await rpc("ri_signed", { p_ref: REF }).catch(() => null);
+  if (CT) { CD = await crmCall("view"); crmApply(); } else ST.signed = await rpc("ri_signed", { p_ref: REF }).catch(() => null);
   const e0 = (M.estimates || [])[0]; if (e0) ST.pick = { 0: e0.recommended || (e0.options || [])[0]?.key };
   draw();
   await circleAll(M); draw();
