@@ -197,10 +197,24 @@ async function jobApiPatient(body, onWait) {
     }
   }
 }
+// Saved upload progress: if the page is reloaded or the person goes back and presses Build again with the
+// same files and details, we keep the same job and only send the stills the server doesn't have yet.
+const UP_KEY = "roofly.upload.v1";
+const hash = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return String(h >>> 0); };
+const fileSig = (f) => f.name + "|" + f.size + "|" + f.lastModified;
+function loadUp(fp) {
+  try { const u = JSON.parse(localStorage.getItem(UP_KEY) || "null"); if (u && u.fp === fp && Date.now() - u.at < 12 * 3600e3) return u; } catch {}
+  return null;
+}
+function saveUp(u) { try { localStorage.setItem(UP_KEY, JSON.stringify({ ...u, at: u.at || Date.now() })); } catch {} }
 async function uploadJob(input, notify) {
   step("scan", "Getting ready…");
-  const created = await jobApi({ action: "create", input, notify_email: notify });
-  const id = created.id;
+  const fp = hash(JSON.stringify([input, state.videos.map(fileSig), state.photos.map(fileSig), state.work.map(fileSig)]));
+  let up = loadUp(fp); // { fp, id, got: { stillId: label }, at }
+  let id;
+  if (up) id = up.id;
+  else { const created = await jobApi({ action: "create", input, notify_email: notify }); id = created.id; up = { fp, id, got: {}, at: Date.now() }; saveUp(up); }
+  const resumed = Object.keys(up.got).length;
   const vids = [];
   for (const f of state.videos) vids.push(await loadVideo(f));
   const multi = vids.length > 1;
@@ -209,14 +223,14 @@ async function uploadJob(input, notify) {
   const { plan } = planScan(vids, Math.min(SCAN_MAX, Math.ceil(totalSec * SCAN_FPS) + vids.length));
   const manifest = [], queue = []; let sent = 0, failed = null, scanned = 0, done = false;
   let waiting = 0;
-  const say = () => step("scan", `${scanned} of ${plan.length} seconds checked · ${sent} of ${manifest.length} stills sent` + (waiting ? " · Waiting for signal… Roofly will pick up right where it left off. Keep this page open." : ""));
+  const say = () => step("scan", (resumed ? "Picking up where you left off · " : "") + `${scanned} of ${plan.length} seconds checked · ${sent} of ${manifest.length} stills sent` + (waiting ? " · Waiting for signal… Roofly will pick up right where it left off. Keep this page open." : ""));
   const onWait = (w) => { const was = waiting; waiting = Math.max(0, waiting + (w ? 1 : -1)); if (!was !== !waiting) say(); };
   // upload workers: 6 stills per request, 3 requests at a time
   const uploader = async () => {
     while (!failed) {
       if (!queue.length) { if (done) return; await new Promise((r) => setTimeout(r, 150)); continue; }
       const chunk = queue.splice(0, 6);
-      try { await jobApiPatient({ action: "upload", id, images: chunk }, onWait); sent += chunk.length; say(); }
+      try { await jobApiPatient({ action: "upload", id, images: chunk }, onWait); sent += chunk.length; for (const c of chunk) up.got[c.id] = c.label; saveUp(up); say(); }
       catch (e) { failed = e; }
     }
   };
@@ -238,23 +252,23 @@ async function uploadJob(input, notify) {
     last = g; lastT = t; lastV = vi;
     const sid = "F" + (manifest.length + 1);
     manifest.push({ id: sid, label: vLabel(vi, t) });
-    queue.push({ id: sid, data: jpeg(c, 0.72) });
+    if (up.got[sid] === vLabel(vi, t)) sent++; else queue.push({ id: sid, label: vLabel(vi, t), data: jpeg(c, 0.72) });
     while (queue.length > 30 && !failed) await new Promise((r) => setTimeout(r, 200)); // don't hold too much in memory
   }
   for (let p = 0; p < Math.min(state.photos.length, PHOTO_BUDGET) && !failed; p++) {
     const img = await loadImage(state.photos[p]); const sid = "P" + (p + 1);
-    manifest.push({ id: sid, label: "Photo " + (p + 1) }); queue.push({ id: sid, data: jpeg(imageToCanvas(img, 1280), 0.78) });
+    manifest.push({ id: sid, label: "Photo " + (p + 1) }); if (up.got[sid] === "Photo " + (p + 1)) sent++; else queue.push({ id: sid, label: "Photo " + (p + 1), data: jpeg(imageToCanvas(img, 1280), 0.78) });
   }
   const work = [];
   for (let w = 0; w < Math.min(state.work.length, 8) && !failed; w++) {
-    try { const img = await loadImage(state.work[w]); const sid = "W" + (w + 1); work.push(sid); queue.push({ id: sid, data: jpeg(imageToCanvas(img, 1200), 0.8) }); } catch {}
+    try { const img = await loadImage(state.work[w]); const sid = "W" + (w + 1); work.push(sid); if (up.got[sid] === "work") sent++; else queue.push({ id: sid, label: "work", data: jpeg(imageToCanvas(img, 1200), 0.8) }); } catch {}
   }
   done = true; await Promise.all(workers);
-  if (failed) throw failed;
+  if (failed) { if (/expired/i.test(failed.message || "")) { try { localStorage.removeItem(UP_KEY); } catch {} } throw failed; }
   const secs = Math.round(totalSec);
   const source = state.videos.length ? `Walkthrough video${state.videos.length > 1 ? "s" : ""} ${state.videos.map((v) => v.name).join(", ")} (${Math.floor(secs / 60)} min ${secs % 60} s)` : `${state.photos.length} photos`;
   await jobApiPatient({ action: "start", id, images: manifest, work, source });
-  try { localStorage.setItem(JOB_KEY, JSON.stringify({ id, at: Date.now() })); } catch {}
+  try { localStorage.setItem(JOB_KEY, JSON.stringify({ id, at: Date.now() })); localStorage.removeItem(UP_KEY); } catch {}
   clearJobDraft();
   return id;
 }
