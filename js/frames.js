@@ -114,3 +114,31 @@ export function circle(c, box) {
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
   return out;
 }
+
+// Choose the best `target` frames from scored candidates [{ k, vi, t, s, g }] (s = sharpness, g = tiny gray thumbnail).
+// 1) drop blurry frames (much softer than their neighbors); 2) one sharpest frame per time slice so the whole
+// walkthrough stays covered; 3) fill the rest with the frames least like anything already chosen (new views,
+// new details). Returns the chosen frames in video order.
+export function pickBest(frames, target) {
+  if (frames.length <= target) return frames.slice();
+  const med = (a) => { const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; };
+  const ok = frames.filter((f, i) => f.s >= 0.6 * med(frames.slice(Math.max(0, i - 3), i + 4).map((x) => x.s)));
+  const pool = ok.length >= target ? ok : frames;
+  const dist = (a, b) => { let d = 0; for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d / a.length; };
+  const chosen = [], taken = new Set();
+  const slices = Math.max(1, Math.floor(target / 2)), per = pool.length / slices;
+  for (let i = 0; i < slices; i++) {
+    const part = pool.slice(Math.floor(i * per), Math.floor((i + 1) * per)); if (!part.length) continue;
+    const best = part.reduce((a, b) => (b.s > a.s ? b : a)); chosen.push(best); taken.add(best);
+  }
+  const minD = new Map(pool.map((f) => [f, chosen.length ? Math.min(...chosen.map((c) => (c.vi === f.vi ? dist(f.g, c.g) : 255))) : 255]));
+  const medS = med(pool.map((x) => x.s)) || 1;
+  while (chosen.length < target) {
+    let best = null, bv = -1;
+    for (const f of pool) { if (taken.has(f)) continue; const v = minD.get(f) * (0.5 + Math.min(1, f.s / medS) / 2); if (v > bv) { bv = v; best = f; } }
+    if (!best) break;
+    chosen.push(best); taken.add(best);
+    for (const f of pool) if (!taken.has(f)) { const d = f.vi === best.vi ? dist(f.g, best.g) : 255; if (d < minD.get(f)) minD.set(f, d); }
+  }
+  return chosen.sort((a, b) => a.vi - b.vi || a.t - b.t);
+}

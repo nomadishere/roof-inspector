@@ -1,5 +1,5 @@
-import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, BATCH, PARALLEL, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
-import { loadVideo, grab, planScan, sharpness, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
+import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, STILL_TARGET, BATCH, PARALLEL, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
+import { loadVideo, grab, planScan, pickBest, sharpness, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
 import { render, fitPages, brandVars, parseRefs } from "./report.js";
 import * as acct from "./account.js";
 import * as crm from "./crm-link.js";
@@ -235,24 +235,29 @@ async function uploadJob(input, notify) {
     }
   };
   const workers = [uploader(), uploader(), uploader()];
-  // one still per second: the sharper of t and t+0.5, skipping near-copies when the camera holds still
+  // Step 1 (free, on the phone): look at every second in small size and score it.
+  // Step 2: keep only the best STILL_TARGET (sharp, covers the whole walkthrough, most different views),
+  // then pull those at full size and send them.
   const thumb = document.createElement("canvas"); thumb.width = 32; thumb.height = 18;
   const tctx = thumb.getContext("2d", { willReadFrequently: true });
-  let last = null, lastT = -99, lastV = -1;
+  const scored = [];
   for (let k = 0; k < plan.length && !failed; k++) {
     const { vi, t } = plan[k];
-    let c = await grab(vids[vi], t, 1280);
-    if (t + 0.5 < vids[vi].duration) { const c2 = await grab(vids[vi], t + 0.5, 1280); if (sharpness(c2) > sharpness(c) * 1.05) c = c2; }
-    scanned = k + 1;
+    const c = await grab(vids[vi], t, 480);
     tctx.drawImage(c, 0, 0, 32, 18); const px = tctx.getImageData(0, 0, 32, 18).data;
     const g = new Uint8Array(576); for (let i = 0; i < 576; i++) g[i] = (px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2]) / 3;
-    let diff = 255; if (last && vi === lastV) { diff = 0; for (let i = 0; i < 576; i++) diff += Math.abs(g[i] - last[i]); diff /= 576; }
-    if (k % 3 === 0) say();
-    if (diff < 5 && t - lastT < 3) continue;
-    last = g; lastT = t; lastV = vi;
+    scored.push({ k, vi, t, s: sharpness(c), g });
+    scanned = k + 1; if (k % 3 === 0) say();
+  }
+  const picks = pickBest(scored, STILL_TARGET);
+  for (const { vi, t } of picks) {
+    if (failed) break;
+    let c = await grab(vids[vi], t, 1280);
+    if (t + 0.5 < vids[vi].duration) { const c2 = await grab(vids[vi], t + 0.5, 1280); if (sharpness(c2) > sharpness(c) * 1.05) c = c2; }
     const sid = "F" + (manifest.length + 1);
     manifest.push({ id: sid, label: vLabel(vi, t) });
     if (up.got[sid] === vLabel(vi, t)) sent++; else queue.push({ id: sid, label: vLabel(vi, t), data: jpeg(c, 0.72) });
+    say();
     while (queue.length > 30 && !failed) await new Promise((r) => setTimeout(r, 200)); // don't hold too much in memory
   }
   for (let p = 0; p < Math.min(state.photos.length, PHOTO_BUDGET) && !failed; p++) {

@@ -6,6 +6,7 @@ export const SHARE_BASE = SUPABASE_URL + "/storage/v1/object/public/ri-reports/r
 
 export const SCAN_FPS = 1;        // 1 still per second, every second of video
 export const SCAN_MAX = 1200;     // safety only (20 min of video)
+export const STILL_TARGET = 100;  // stills sent to the AI: the best ones, picked on the phone for free
 export const BATCH = 20;          // stills per AI inspection batch
 export const PARALLEL = 4;        // batches inspected at once
 export const PHOTO_BUDGET = 60;   // uploaded photos sent
