@@ -137,7 +137,7 @@ $("form").addEventListener("submit", async (e) => {
   };
   try { localStorage.setItem(BRAND_KEY, JSON.stringify({ ...brand, font: brand.fontIndex, references: $("references").value })); } catch {}
   const d = $("date").value ? new Date($("date").value + "T12:00:00") : new Date();
-  const job = { company: brand.company, address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim(), level: (document.querySelector('input[name="level"]:checked') || {}).value || "standard", diy: !!$("diy").checked };
+  const job = { company: brand.company, address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim(), level: (document.querySelector('input[name="level"]:checked') || {}).value || "standard", diy: !!$("diy").checked, repair: !!$("repair").checked };
   const margin = { include: pricing() === "margin", pct: Math.max(0, Math.min(100, +$("pct").value || 0)) };
 
   // free account (before any AI spend, so a bad password doesn't waste a run)

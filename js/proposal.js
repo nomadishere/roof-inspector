@@ -146,8 +146,7 @@ export function renderProposal(m, st = {}) {
       ${opts.map((o) => { const t = optionTotals(o, margin), on = pick === o.key || (S && S.option_key === `${ei}:${o.key}`);
         return `<label class="opt ${on ? "on" : ""}"><div class="top">${S ? "" : `<input type="radio" name="opt${ei}" data-ei="${ei}" value="${esc(o.key)}" ${on ? "checked" : ""}>`}<div style="flex:1;min-width:0"><div><span class="nm">${esc(o.name)}</span>${est.recommended === o.key ? `<span class="tier">Recommended</span>` : ""}</div>${o.subtitle ? `<div class="muted" style="font-size:13.5px">${esc(o.subtitle)}</div>` : ""}</div></div>
         <div class="scope"><table><thead><tr><th>Scope</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>
-        ${(o.lines || []).map((l) => `<tr><td>${esc(l.desc)}</td><td class="num">${esc(+l.qty)} ${esc(l.unit || "")}</td><td class="num">${money((+l.qty || 0) * (+l.price || 0))}</td></tr>`).join("")}
-        ${margin.include ? `<tr class="sub"><td colspan="2">Overhead &amp; profit</td><td class="num">${money(t.op)}</td></tr>` : ""}
+        ${(o.lines || []).map((l) => `<tr><td>${esc(l.desc)}</td><td class="num">${esc(+l.qty)} ${esc(l.unit || "")}</td><td class="num">${money((+l.qty || 0) * (+l.price || 0) * (margin.include ? 1 + (+margin.pct || 0) / 100 : 1))}</td></tr>`).join("")}
         <tr class="total"><td colspan="2">${margin.include ? "TOTAL INVESTMENT" : "TOTAL (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr></tbody></table></div>
         ${o.warranty || o.timeline ? `<p class="note" style="margin-top:8px">${o.warranty ? "<b>Warranty:</b> " + esc(o.warranty) + " " : ""}${o.timeline ? "<b>Schedule:</b> " + esc(o.timeline) : ""}</p>` : ""}</label>`; }).join("")}
       <div class="cols"><div class="box"><h4>Payment &amp; terms</h4>${esc(est.payment || m.terms || "50% deposit to schedule, balance due at substantial completion. Proposal good for 30 days.")}</div>

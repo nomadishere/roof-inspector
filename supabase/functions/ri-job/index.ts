@@ -120,7 +120,9 @@ async function runPart(jobId: string, kind: string, idx: number) {
         ? `\n\nTHIS CALL: return ONLY these keys: intro, safety, material_rule, weather_window, basic_method.`
         : `\n\nTHIS CALL: return ONLY these keys: shopping_list, maintenance, winter, call_pro, disclaimer.`) }]);
       else if (kind === "note") result = await ai(J, kind, [{ type: "text", text: P.notePrompt(job, cText) }]);
-      else if (kind === "estimate") result = await ai(J, kind, [{ type: "text", text: P.estimatePrompt(job, cText, part.payload.roofType) + (part.payload.key === "A"
+      else if (kind === "estimate") result = await ai(J, kind, [{ type: "text", text: P.estimatePrompt(job, cText, part.payload.roofType) + (part.payload.only
+        ? `\n\nTHIS CALL: a repair option is NOT being offered. Return the full JSON shape above, but "options" holds ONLY Option B. Set compare_rows to [], recommended to "B", and recommendation to ONE short paragraph on why a full replacement fits this roof (never mention an "Option A" or a repair option). Still fill quantities_note, assumptions, exclusions and payment.`
+        : part.payload.key === "A"
         ? `\n\nTHIS CALL: return the full JSON shape above EXCEPT put only Option A in "options" (Option B is written separately). Still fill compare_rows, recommended, recommendation, quantities_note, assumptions, exclusions and payment for both options.`
         : `\n\nTHIS CALL: return ONLY {"options":[ Option B in the shape above ]}. Nothing else.`) }]);
       else if (kind === "diy_items") result = await ai(J, kind, [{ type: "text", text: P.diyItemsPrompt(job, { ...cText, phase: part.payload.phase, startAt: 1 }) }]);
@@ -219,8 +221,9 @@ async function advance(jobId: string) {
       const chunks: any[] = [];
       phases.forEach((ph: any, pi: number) => { for (let k = 0; k < ph.findings.length; k += 6) chunks.push({ phase: { ...ph, findings: ph.findings.slice(k, k + 6) }, pi }); });
       const diy = J.input?.job?.diy === true; // the DIY repair guide is optional (off unless asked for)
+      const repair = J.input?.job?.repair === true; // Option A (repair) is optional; by default the report offers full replacement only
       const parts = [...(diy ? [{ kind: "diy_guide", idx: 0 }, { kind: "diy_guide", idx: 1 }] : []), { kind: "note", idx: 0 },
-        ...roofTypes.flatMap((rt: string, i: number) => [{ kind: "estimate", idx: i * 2, payload: { roofType: rt, key: "A" } }, { kind: "estimate", idx: i * 2 + 1, payload: { roofType: rt, key: "B" } }]),
+        ...roofTypes.flatMap((rt: string, i: number) => repair ? [{ kind: "estimate", idx: i * 2, payload: { roofType: rt, key: "A" } }, { kind: "estimate", idx: i * 2 + 1, payload: { roofType: rt, key: "B" } }] : [{ kind: "estimate", idx: i, payload: { roofType: rt, key: "B", only: true } }]),
         ...(diy ? chunks.map((c: any, i: number) => ({ kind: "diy_items", idx: i, payload: c })) : [])];
       await addParts(jobId, parts);
       await setJob(jobId, { state: { ...J.state, nWrite: parts.length } });
@@ -249,7 +252,8 @@ async function assemble(J: any) {
   let n = 0;
   const diyPhases = phases.map((ph: any, pi: number) => ({ name: ph.name, items: (itemRows || []).filter((r: any) => r.payload?.pi === pi).flatMap((r: any) => r.result?.items || []).map((x: any) => ({ ...x, title: `${++n}. ` + String(x.title || "Repair").replace(/^\s*\d+[.)]\s*/, ""), findings: (x.findings || []).filter((k: number) => k >= 1 && k <= nf) })) }));
   const estParts = await partResults(J.id, "estimate");
-  const ests = (inp.job.roofTypes || []).map((_: string, i: number) => { const a = estParts[i * 2] || {}, b = estParts[i * 2 + 1] || {}; return { ...a, options: [...(a.options || []).slice(0, 1), ...(b.options || []).slice(0, 1)] }; });
+  const repairOn = inp.job?.repair === true;
+  const ests = (inp.job.roofTypes || []).map((_: string, i: number) => { if (!repairOn) { const b = estParts[i] || {}; return { ...b, options: (b.options || []).slice(0, 1), compare_rows: [] }; } const a = estParts[i * 2] || {}, b = estParts[i * 2 + 1] || {}; return { ...a, options: [...(a.options || []).slice(0, 1), ...(b.options || []).slice(0, 1)] }; });
   const gParts = await partResults(J.id, "diy_guide"); const guide = { ...(gParts[0] || {}), ...(gParts[1] || {}) };
   const [note] = await partResults(J.id, "note");
   const [MS] = await partResults(J.id, "measure");
@@ -347,7 +351,7 @@ Deno.serve(async (req) => {
     if ((count || 0) >= JOBS_PER_IP_PER_DAY) return out({ error: "LIMIT", message: "You've made a lot of reports today. Please try again tomorrow." }, 429);
     const user = await userFrom(req);
     const input = b.input || {}; input.job = input.job || {}; input.job.roofTypes = (input.job.roofTypes || []).slice(0, 3).map(String);
-    input.job.level = LEVEL_FINDINGS[input.job.level] ? input.job.level : "standard"; input.job.diy = input.job.diy === true;
+    input.job.level = LEVEL_FINDINGS[input.job.level] ? input.job.level : "standard"; input.job.diy = input.job.diy === true; input.job.repair = input.job.repair === true;
     const { data, error } = await db.from("ri_jobs").insert({ ip, user_id: user?.id || null, notify_email: String(b.notify_email || "").slice(0, 200), input }).select("id").single();
     if (error) return out({ error: "DB", message: "Couldn't start the report. Please try again." }, 500);
     return out({ id: data.id });
