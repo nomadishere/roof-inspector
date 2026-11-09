@@ -290,7 +290,13 @@ async function followJob(id) {
     if (s.status === "error") { try { localStorage.removeItem(JOB_KEY); } catch {} throw new Error(s.error || "Roofly couldn't finish this report. Please try again."); }
     step(STAGE_STEP[s.stage] || "vision", s.progress || undefined);
     if (s.status === "done") {
-      step("build", "Circling every problem in red");
+      // finished reports open in the on-screen proposal page (CRM design, share-to-sign, PDF)
+      step("build", "Opening your report");
+      try { localStorage.removeItem(JOB_KEY); } catch {}
+      state.dirty = false; state.model = null;
+      location.replace(new URL("p/?job=" + id, location.href).href);
+      return;
+      // eslint-disable-next-line no-unreachable
       const m = await fetch(s.report + "?t=" + Date.now()).then((r) => r.json());
       await circleModel(m);
       state.model = m; state.reportId = s.report_id || null; state.dirty = false;
