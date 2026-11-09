@@ -50,6 +50,11 @@
       </div>
       <div class="lbl">Roof type <span class="hint">check all that apply</span></div>
       <div class="checks" id="roofTypes"></div>
+      <div class="lbl">Report size</div>
+      <label class="radio"><input type="radio" name="level" value="quick"> <span><b>Quick</b><br><span class="hint">Fastest. The best ~50 stills and the 20 biggest findings.</span></span></label>
+      <label class="radio"><input type="radio" name="level" value="standard" checked> <span><b>Standard</b> <span class="hint">(recommended)</span><br><span class="hint">The best ~100 stills and up to 50 findings.</span></span></label>
+      <label class="radio"><input type="radio" name="level" value="thorough"> <span><b>Thorough</b><br><span class="hint">The best ~200 stills and up to 100 findings. Takes longer.</span></span></label>
+      <label class="radio"><input type="checkbox" id="diy"> <span><b>Add a DIY repair guide</b><br><span class="hint">Optional. Step-by-step repairs for every finding, safety rules and a shopping list. Most jobs don't need it. Without it you still get the findings, circled photos and proposals.</span></span></label>
       <label>Notes for the report <span class="hint">optional — roof age, layers, what the owner wants, anything you saw</span>
         <textarea id="notes" autocomplete="off" rows="3" placeholder="e.g. Owner says roof is ~18 years old, 2 layers. Leak over the kitchen after storms."></textarea></label>
     </fieldset>

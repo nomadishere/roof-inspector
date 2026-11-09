@@ -165,13 +165,21 @@ function mergeInput(raw: any[]) {
   });
   return { rawF, rawL, flat, covers, facts, other };
 }
+// report size: the most findings that go in, worst first, kept in walkthrough order
+const LEVEL_FINDINGS: Record<string, number> = { quick: 20, standard: 50, thorough: 100 };
+const SEV: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+function capFindings(list: any[], n: number) {
+  if (list.length <= n) return list;
+  const keep = new Set(list.map((f, i) => ({ f, i })).sort((a, b) => (SEV[a.f.severity] ?? 2) - (SEV[b.f.severity] ?? 2) || a.i - b.i).slice(0, n).map((x) => x.i));
+  return list.filter((_, i) => keep.has(i));
+}
 // put the finished merge chunks back together, in walkthrough order
 async function combineMerge(jobId: string, J: any) {
   if (J.state?.C) return J.state.C;
   const parts = await partResults(jobId, "merge");
   const { other, covers } = mergeInput(await partResults(jobId, "vision"));
   const first = parts.find((p: any) => p.roof_system || p.facts) || parts[0] || {};
-  const C: any = { cover: parts.find((p: any) => p.cover)?.cover || covers[0]?.image || J.input?.images?.[0]?.id, roof_system: first.roof_system, facts: first.facts, size_squares: first.size_squares, findings: parts.flatMap((p: any) => p.findings || []), leaks: parts.flatMap((p: any) => p.leaks || []), other: other.slice(0, 12) };
+  const C: any = { cover: parts.find((p: any) => p.cover)?.cover || covers[0]?.image || J.input?.images?.[0]?.id, roof_system: first.roof_system, facts: first.facts, size_squares: first.size_squares, findings: capFindings(parts.flatMap((p: any) => p.findings || []), LEVEL_FINDINGS[J.input?.job?.level] || 50), leaks: parts.flatMap((p: any) => p.leaks || []), other: other.slice(0, 12) };
   await setJob(jobId, { state: { ...J.state, C } });
   return C;
 }
@@ -201,9 +209,10 @@ async function advance(jobId: string) {
       // DIY items: each phase in chunks of up to 6 findings, so no single answer runs long
       const chunks: any[] = [];
       phases.forEach((ph: any, pi: number) => { for (let k = 0; k < ph.findings.length; k += 6) chunks.push({ phase: { ...ph, findings: ph.findings.slice(k, k + 6) }, pi }); });
-      const parts = [{ kind: "diy_guide", idx: 0 }, { kind: "diy_guide", idx: 1 }, { kind: "note", idx: 0 },
+      const diy = J.input?.job?.diy === true; // the DIY repair guide is optional (off unless asked for)
+      const parts = [...(diy ? [{ kind: "diy_guide", idx: 0 }, { kind: "diy_guide", idx: 1 }] : []), { kind: "note", idx: 0 },
         ...roofTypes.flatMap((rt: string, i: number) => [{ kind: "estimate", idx: i * 2, payload: { roofType: rt, key: "A" } }, { kind: "estimate", idx: i * 2 + 1, payload: { roofType: rt, key: "B" } }]),
-        ...chunks.map((c: any, i: number) => ({ kind: "diy_items", idx: i, payload: c }))];
+        ...(diy ? chunks.map((c: any, i: number) => ({ kind: "diy_items", idx: i, payload: c })) : [])];
       await addParts(jobId, parts);
       await setJob(jobId, { state: { ...J.state, nWrite: parts.length } });
       await Promise.all(parts.map((p) => kick(jobId, p.kind, p.idx)));
@@ -329,6 +338,7 @@ Deno.serve(async (req) => {
     if ((count || 0) >= JOBS_PER_IP_PER_DAY) return out({ error: "LIMIT", message: "You've made a lot of reports today. Please try again tomorrow." }, 429);
     const user = await userFrom(req);
     const input = b.input || {}; input.job = input.job || {}; input.job.roofTypes = (input.job.roofTypes || []).slice(0, 3).map(String);
+    input.job.level = LEVEL_FINDINGS[input.job.level] ? input.job.level : "standard"; input.job.diy = input.job.diy === true;
     const { data, error } = await db.from("ri_jobs").insert({ ip, user_id: user?.id || null, notify_email: String(b.notify_email || "").slice(0, 200), input }).select("id").single();
     if (error) return out({ error: "DB", message: "Couldn't start the report. Please try again." }, 500);
     return out({ id: data.id });

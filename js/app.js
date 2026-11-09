@@ -1,4 +1,4 @@
-import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, STILL_TARGET, BATCH, PARALLEL, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
+import { FN, SUPABASE_ANON, SCAN_FPS, SCAN_MAX, STILL_TARGET, LEVELS, BATCH, PARALLEL, PHOTO_BUDGET, FONTS, ROOF_TYPES } from "./config.js";
 import { loadVideo, grab, planScan, pickBest, sharpness, circle, jpeg, fmtTime, loadImage, imageToCanvas } from "./frames.js";
 import { render, fitPages, brandVars, parseRefs } from "./report.js";
 import * as acct from "./account.js";
@@ -135,7 +135,7 @@ $("form").addEventListener("submit", async (e) => {
   };
   try { localStorage.setItem(BRAND_KEY, JSON.stringify({ ...brand, font: brand.fontIndex, references: $("references").value })); } catch {}
   const d = $("date").value ? new Date($("date").value + "T12:00:00") : new Date();
-  const job = { company: brand.company, address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim() };
+  const job = { company: brand.company, address: $("address").value.trim(), client: $("client").value.trim(), clientPhone: $("clientPhone").value.trim(), clientEmail: $("clientEmail").value.trim(), date: d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), roofTypes, notes: $("notes").value.trim(), level: (document.querySelector('input[name="level"]:checked') || {}).value || "standard", diy: !!$("diy").checked };
   const margin = { include: pricing() === "margin", pct: Math.max(0, Math.min(100, +$("pct").value || 0)) };
 
   // free account (before any AI spend, so a bad password doesn't waste a run)
@@ -249,7 +249,7 @@ async function uploadJob(input, notify) {
     scored.push({ k, vi, t, s: sharpness(c), g });
     scanned = k + 1; if (k % 3 === 0) say();
   }
-  const picks = pickBest(scored, STILL_TARGET);
+  const picks = pickBest(scored, (LEVELS[input.job?.level] || {}).stills || STILL_TARGET);
   for (const { vi, t } of picks) {
     if (failed) break;
     let c = await grab(vids[vi], t, 1280);
