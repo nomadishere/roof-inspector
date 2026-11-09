@@ -26,6 +26,15 @@ function hslToHex(H, S, L) {
   const [r, g, b] = H < 60 ? [c, x, 0] : H < 120 ? [x, c, 0] : H < 180 ? [0, c, x] : H < 240 ? [0, x, c] : H < 300 ? [x, 0, c] : [c, 0, x];
   return "#" + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
 }
+// Terms text -> readable paragraphs: ALL-CAPS lines become headings, every other line its own paragraph.
+function termsHtml(t) {
+  return String(t || "").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => {
+    if (/^[A-Z0-9 &|.,'()\/-]{4,}$/.test(l)) return `<h4 style="margin:20px 0 6px;font-size:13px;letter-spacing:.04em">${esc(l)}</h4>`;
+    const i = l.indexOf(":"), lead = i > 0 && i <= 42 ? l.slice(0, i + 1) : "";
+    return `<p style="margin:0 0 10px">${lead ? "<b>" + esc(lead) + "</b>" + esc(l.slice(i + 1)) : esc(l)}</p>`;
+  }).join("");
+}
+
 export function brandColor(hex) {
   const hsl = hexToHsl(hex); if (!hsl) return "#16603A";
   let [H, S, L] = hsl;
@@ -154,7 +163,7 @@ export function renderProposal(m, st = {}) {
       ${est.quantities_note ? `<p class="note" style="margin-top:8px">${esc(est.quantities_note)}</p>` : ""}</div>`);
   });
 
-  if (m.addendum) out.push(`<div class="sec">${hdr("Terms & conditions")}<div style="white-space:pre-wrap;font-size:14px;line-height:1.5">${esc(m.addendum)}</div></div>`);
+  if (m.addendum) out.push(`<div class="sec">${hdr("Terms & conditions")}<div style="font-size:14px;line-height:1.55">${termsHtml(m.addendum)}</div></div>`);
 
   // acceptance
   const all = []; ests.forEach((est, ei) => (est.options || []).forEach((o) => all.push({ ei, o, est })));
