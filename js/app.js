@@ -180,6 +180,23 @@ async function jobApi(body) {
   const tok = state.user ? await acct.accessToken().catch(() => "") : "";
   return api("ri-job", body, 5, tok);
 }
+// Patient version for the upload step: a dropped signal never kills the run. It waits for the phone to
+// get back online and keeps retrying (the server ignores re-sent stills, they just overwrite). Only real
+// refusals from the server (caps, bad input) stop it.
+async function jobApiPatient(body, onWait) {
+  let waiting = false;
+  for (let i = 0; ; i++) {
+    try { const r = await jobApi(body); if (waiting && onWait) onWait(false); return r; }
+    catch (e) {
+      if (!e.retry) throw e;
+      if (!waiting && onWait) { waiting = true; onWait(true); }
+      await new Promise((res) => {
+        const t = setTimeout(res, Math.min(30000, 3000 + i * 2000));
+        window.addEventListener("online", () => { clearTimeout(t); res(); }, { once: true });
+      });
+    }
+  }
+}
 async function uploadJob(input, notify) {
   step("scan", "Getting ready…");
   const created = await jobApi({ action: "create", input, notify_email: notify });
@@ -191,13 +208,15 @@ async function uploadJob(input, notify) {
   const totalSec = vids.reduce((a, v) => a + v.duration, 0);
   const { plan } = planScan(vids, Math.min(SCAN_MAX, Math.ceil(totalSec * SCAN_FPS) + vids.length));
   const manifest = [], queue = []; let sent = 0, failed = null, scanned = 0, done = false;
-  const say = () => step("scan", `${scanned} of ${plan.length} seconds checked · ${sent} of ${manifest.length} stills sent`);
+  let waiting = 0;
+  const say = () => step("scan", `${scanned} of ${plan.length} seconds checked · ${sent} of ${manifest.length} stills sent` + (waiting ? " · Waiting for signal… Roofly will pick up right where it left off. Keep this page open." : ""));
+  const onWait = (w) => { const was = waiting; waiting = Math.max(0, waiting + (w ? 1 : -1)); if (!was !== !waiting) say(); };
   // upload workers: 6 stills per request, 3 requests at a time
   const uploader = async () => {
     while (!failed) {
       if (!queue.length) { if (done) return; await new Promise((r) => setTimeout(r, 150)); continue; }
       const chunk = queue.splice(0, 6);
-      try { await jobApi({ action: "upload", id, images: chunk }); sent += chunk.length; say(); }
+      try { await jobApiPatient({ action: "upload", id, images: chunk }, onWait); sent += chunk.length; say(); }
       catch (e) { failed = e; }
     }
   };
@@ -234,7 +253,7 @@ async function uploadJob(input, notify) {
   if (failed) throw failed;
   const secs = Math.round(totalSec);
   const source = state.videos.length ? `Walkthrough video${state.videos.length > 1 ? "s" : ""} ${state.videos.map((v) => v.name).join(", ")} (${Math.floor(secs / 60)} min ${secs % 60} s)` : `${state.photos.length} photos`;
-  await jobApi({ action: "start", id, images: manifest, work, source });
+  await jobApiPatient({ action: "start", id, images: manifest, work, source });
   try { localStorage.setItem(JOB_KEY, JSON.stringify({ id, at: Date.now() })); } catch {}
   clearJobDraft();
   return id;
