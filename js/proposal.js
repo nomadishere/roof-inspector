@@ -116,7 +116,7 @@ export function renderProposal(m, st = {}) {
       <div class="counts">${["critical", "high", "medium", "low"].map((s) => `<div class="kpi"><b class="lvl ${s}">${n(s)}</b><span>${s[0].toUpperCase() + s.slice(1)}</span></div>`).join("")}</div>
       <p class="note"><b class="lvl critical">Critical</b>: open to water now. <b class="lvl high">High</b>: likely leak source, fix soon. <b class="lvl medium">Medium</b>: wear to fix in the normal course. <b class="lvl low">Low</b>: minor, monitor.</p>
       <div class="photos">${F.map((f, i) => `<div class="fcard">${f.img ? `<img src="${esc(f.img)}" alt="">` : ""}<div class="t"><span class="pill ${sev(f.severity)}">${esc(f.severity)}</span> <span class="n">#${i + 1} · ${esc(f.category || "")}${f.timeLabel ? " · " + esc(f.timeLabel) : ""}</span><b>${esc(f.title)}</b>${esc(f.description)}</div></div>`).join("")}</div>
-      ${arr(m.limitations).length ? `<h3>What still needs checking</h3><ul>${arr(m.limitations).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div>`);
+      </div>`);
   }
   if (arr(m.other).length) out.push(`<div class="sec">${hdr("Other things we noticed")}<h2>Other things we noticed</h2><p class="muted">Not roof work and not included in our pricing. Just a heads-up so nothing surprises you.</p><ul>${m.other.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`);
   if (L.length) out.push(`<div class="sec">${hdr("Inside the building")}<h2>Interior leaks</h2>${m.leak_summary ? `<p>${esc(m.leak_summary)}</p>` : ""}
