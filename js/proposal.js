@@ -26,6 +26,22 @@ function hslToHex(H, S, L) {
   const [r, g, b] = H < 60 ? [c, x, 0] : H < 120 ? [x, c, 0] : H < 180 ? [0, c, x] : H < 240 ? [0, x, c] : H < 300 ? [x, 0, c] : [c, 0, x];
   return "#" + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
 }
+// Price table (format v2): MATERIALS list, then LABOR steps, then disposal, each group with a subtotal.
+function scopeRowsV2(lines) {
+  const grp = (l) => (l.kind === "Labor" ? "LABOR" : l.kind === "Disposal" ? "" : "MATERIALS");
+  const amt = (l) => (+l.qty || 0) * (+l.price || 0);
+  let out = "", cur = null, sub = 0;
+  const flush = () => { if (cur) out += `<tr><td colspan="2" style="text-align:right;color:#5B635C;font-size:13px">${cur === "LABOR" ? "Labor" : "Materials"} subtotal</td><td class="num" style="font-weight:700">${money(sub)}</td></tr>`; };
+  for (const l of lines) {
+    const g = grp(l);
+    if (g !== cur) { flush(); cur = g; sub = 0; if (g) out += `<tr><td colspan="3" style="background:var(--tint);color:var(--brand);font-weight:700;font-size:12.5px;letter-spacing:.08em;padding:7px 10px">${g}</td></tr>`; }
+    sub += amt(l);
+    out += `<tr><td>${esc(l.desc)}${l.note ? `<div class="note">${esc(l.note)}</div>` : ""}</td><td class="num">${esc(l.qtyText || "")}</td><td class="num">${money(amt(l))}</td></tr>`;
+  }
+  if (cur === "MATERIALS" || cur === "LABOR") flush();
+  return out;
+}
+
 // Terms text -> readable layout: ALL-CAPS lines become section headings, "Label: text" lines become clause rows.
 function termsHtml(t) {
   return String(t || "").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => {
@@ -157,8 +173,8 @@ export function renderProposal(m, st = {}) {
       ${arr(est.recommendation).map((p) => `<p>${esc(p)}</p>`).join("")}${!S && opts.length > 1 ? `<p class="muted">Tap the option you want, then sign at the bottom.</p>` : ""}
       ${opts.map((o) => { const t = optionTotals(o, margin), on = pick === o.key || (S && S.option_key === `${ei}:${o.key}`);
         return `<label class="opt ${on ? "on" : ""}"><div class="top">${S ? "" : `<input type="radio" name="opt${ei}" data-ei="${ei}" value="${esc(o.key)}" ${on ? "checked" : ""}>`}<div style="flex:1;min-width:0"><div><span class="nm">${esc(o.name)}</span>${est.recommended === o.key ? `<span class="tier">Recommended</span>` : ""}</div>${o.subtitle ? `<div class="muted" style="font-size:13.5px">${esc(o.subtitle)}</div>` : ""}</div></div>
-        <div class="scope"><table><thead><tr><th>Scope</th><th class="num">${m.formatVersion >= 2 ? "Per square" : "Qty"}</th><th class="num">Amount</th></tr></thead><tbody>
-        ${(o.lines || []).map((l) => `<tr><td>${esc(l.desc)}</td><td class="num">${m.formatVersion >= 2 ? (l.unit === "sq" ? money(+l.price) + " / sq" : "") : esc(+l.qty) + " " + esc(l.unit || "")}</td><td class="num">${money((+l.qty || 0) * (+l.price || 0) * (margin.include ? 1 + (+margin.pct || 0) / 100 : 1))}</td></tr>`).join("")}
+        <div class="scope"><table><thead><tr><th>Scope</th><th class="num">${m.formatVersion >= 2 ? "Qty" : "Qty"}</th><th class="num">Amount</th></tr></thead><tbody>
+        ${m.formatVersion >= 2 ? scopeRowsV2(o.lines || []) : (o.lines || []).map((l) => `<tr><td>${esc(l.desc)}</td><td class="num">${esc(+l.qty)} ${esc(l.unit || "")}</td><td class="num">${money((+l.qty || 0) * (+l.price || 0) * (margin.include ? 1 + (+margin.pct || 0) / 100 : 1))}</td></tr>`).join("")}
         <tr class="total"><td colspan="2">${margin.include || m.formatVersion >= 2 ? "TOTAL INVESTMENT" : "TOTAL (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr></tbody></table></div>
         ${o.warranty || o.timeline ? `<p class="note" style="margin-top:8px">${o.warranty ? "<b>Warranty:</b> " + esc(o.warranty) + " " : ""}${o.timeline ? "<b>Schedule:</b> " + esc(o.timeline) : ""}</p>` : ""}</label>`; }).join("")}
       <div class="cols"><div class="box"><h4>Payment &amp; terms</h4>${esc(est.payment || m.terms || "50% deposit to schedule, balance due at substantial completion. Proposal good for 30 days.")}</div>
