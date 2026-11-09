@@ -150,7 +150,7 @@ export function renderProposal(m, st = {}) {
         <tr class="total"><td colspan="2">${margin.include ? "TOTAL INVESTMENT" : "TOTAL (MATERIALS + LABOR)"}</td><td class="num">${money(t.total)}</td></tr></tbody></table></div>
         ${o.warranty || o.timeline ? `<p class="note" style="margin-top:8px">${o.warranty ? "<b>Warranty:</b> " + esc(o.warranty) + " " : ""}${o.timeline ? "<b>Schedule:</b> " + esc(o.timeline) : ""}</p>` : ""}</label>`; }).join("")}
       <div class="cols"><div class="box"><h4>Payment &amp; terms</h4>${esc(est.payment || m.terms || "50% deposit to schedule, balance due at substantial completion. Proposal good for 30 days.")}</div>
-        <div class="box"><h4>Notes &amp; exclusions</h4><ul>${[...arr(est.assumptions), ...arr(est.exclusions)].slice(0, 12).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>
+        <div class="box"><h4>Notes &amp; exclusions</h4><ul>${[...arr(est.assumptions), ...arr(est.exclusions)].map((x) => String(x).replace(/,?\s*before (overhead|profit)[^.]*/i, "")).filter((x) => !/overhead|profit/i.test(x)).slice(0, 12).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>
       ${est.quantities_note ? `<p class="note" style="margin-top:8px">${esc(est.quantities_note)}</p>` : ""}</div>`);
   });
 
