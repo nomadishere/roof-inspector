@@ -155,13 +155,22 @@ async function measureRoof(J: any) {
 // Merge runs in chunks of MERGE_CHUNK raw items, each its own part, so one AI answer never runs past the
 // 150 s limit (a 400-still walkthrough produced ~200 findings; one call for all of them timed out).
 const MERGE_CHUNK = 60;
+// Justin's focus rule (Nov 9 2026): never report tree limbs, gutter debris, rust or downspouts
+const SKIP_TOPIC = /\b(tree|trees|branch|branches|limb|limbs|leaves|leaf|downspout|downspouts|rust|rusty|rusted|rust streak)\b|clogged gutter|packed with|filled with (leaves|debris)/i;
+// strip inspector-only "(confirm)" notes out of anything a client reads
+function stripConfirm(v: any): any {
+  if (typeof v === "string") return v.replace(/\s*\((?:[^()]*\b)?(?:to be |to )?confirm(?:ed)?\b[^()]*\)/gi, "").replace(/\s+\(confirm\)/gi, "").replace(/\s*[,;]?\s*(?:age|style|size|layers?):\s*confirm\b/gi, "").replace(/\s{2,}/g, " ").trim();
+  if (Array.isArray(v)) return v.map(stripConfirm);
+  if (v && typeof v === "object") { const o: any = {}; for (const k of Object.keys(v)) o[k] = stripConfirm(v[k]); return o; }
+  return v;
+}
 function mergeInput(raw: any[]) {
   const rawF: any = {}, rawL: any = {}, flat: any[] = [], covers: any[] = [], facts: string[] = [], other: string[] = [];
   raw.forEach((res: any) => {
-    (res.findings || []).forEach((f: any) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
+    (res.findings || []).filter((f: any) => !SKIP_TOPIC.test(String(f.title || ""))).forEach((f: any) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
     (res.leaks || []).forEach((l: any) => { const id = "L" + (Object.keys(rawL).length + 1); rawL[id] = l; flat.push({ id, at: l.source, location: l.location, observed: l.observed }); });
     covers.push(...(res.cover_candidates || [])); if (res.facts_seen) facts.push(res.facts_seen);
-    for (const o of res.other_notes || []) { const t = String(o || "").trim(); if (t && !other.some((x) => x.toLowerCase().slice(0, 40) === t.toLowerCase().slice(0, 40))) other.push(t.slice(0, 220)); }
+    for (const o of res.other_notes || []) { const t = String(o || "").trim(); if (t && !SKIP_TOPIC.test(t) && !other.some((x) => x.toLowerCase().slice(0, 40) === t.toLowerCase().slice(0, 40))) other.push(t.slice(0, 220)); }
   });
   return { rawF, rawL, flat, covers, facts, other };
 }
@@ -259,13 +268,13 @@ async function assemble(J: any) {
     workPhotos: (inp.work || []).map((id: string) => ({ img: `${PUB}/${J.id}/${id}.jpg`, caption: "" })),
     createdAt: now(), madeWith: "Roofly", jobId: J.id,
   };
-  const body = new Blob([JSON.stringify(model)], { type: "application/json" });
+  const body = new Blob([JSON.stringify(stripConfirm(model))], { type: "application/json" });
   await db.storage.from(BUCKET).upload(`${J.id}/report.json`, body, { upsert: true, contentType: "application/json" });
   // save to the person's account
   let reportId: string | null = null;
   if (J.user_id) {
     const { data } = await db.from("ri_reports").insert({ user_id: J.user_id, address: (inp.job.address || "").slice(0, 300), client: (inp.job.client || "").slice(0, 200) }).select("id").single();
-    if (data?.id) { reportId = data.id; await db.storage.from("ri-user").upload(`${J.user_id}/${reportId}.json`, new Blob([JSON.stringify({ ...model, reportId })], { type: "application/json" }), { upsert: true, contentType: "application/json" }); }
+    if (data?.id) { reportId = data.id; await db.storage.from("ri-user").upload(`${J.user_id}/${reportId}.json`, new Blob([JSON.stringify({ ...stripConfirm(model), reportId })], { type: "application/json" }), { upsert: true, contentType: "application/json" }); }
   }
   await db.from("ri_jobs").update({ status: "done", stage: "done", progress: "Ready", report_id: reportId, updated_at: now() }).eq("id", J.id);
   await notify(J, nf);

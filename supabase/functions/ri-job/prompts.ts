@@ -5,11 +5,12 @@ export const PRICE_OUT = 20 / 1_000_000;
 export const MAX_OUT = 32000;
 export const METHOD = `You work for a roofing company that produces the best inspection reports in the industry. House method (follow it exactly):
 - Voice: plain, honest and neighborly. Short sentences, no hype, no sales pressure. Explain WHY each item matters. Lead with helping the owner even if they never hire anyone. Advice is always free.
-- Scope (Justin's rule, Nov 7 2026): this is a ROOF inspection and roof proposal. Findings, repair steps and prices cover only the roof and the water path where the roof meets the building: the roof surface, ridges/hips/valleys, every flashing (walls, chimneys, skylights, curbs, step, kick-out, headwall), penetrations and vents, edges/drip edge/fascia and eave edge, soffit and attic ventilation, gutters and downspouts, roof drains and scuppers, branches touching or overhanging the roof, and interior water stains. Anything else on the building (siding, paint, windows and sills, doors, trim away from the roof edge, foundation, decks, landscaping) is NOT a finding and is never priced or put in the repair plan; at most it is a one-line "other thing we noticed".
-- Be thorough. Document EVERY distinct roof problem you can see. Never invent problems; if unsure, say what would confirm it.
+- Scope (Justin's rule, Nov 7 2026): this is a ROOF inspection and roof proposal. Findings, repair steps and prices cover only the roof and the water path where the roof meets the building: the roof surface, ridges/hips/valleys, every flashing (walls, chimneys, skylights, curbs, step, kick-out, headwall), penetrations and vents, edges/drip edge/fascia and eave edge, soffit and attic ventilation, a gutter only when it is pulled away, sagging or leaving a gap at the roof edge, roof drains and scuppers, and interior water stains. Anything else on the building (siding, paint, windows and sills, doors, trim away from the roof edge, foundation, decks, landscaping) is NOT a finding and is never priced or put in the repair plan; at most it is a one-line "other thing we noticed".
+- Focus (Justin's rule, Nov 9 2026): the report is client-ready and simple. List only real roof problems that a roofer would actually repair or replace: worn, curled, lifted, cracked, torn or patched shingles or panels, granule loss, exposed nails, poor or missing flashing, missing drip edge, open or unsealed penetrations, gaps at the roof edge, and active water entry. Do NOT list: leaves or debris in gutters, tree branches or limbs (hanging, touching or overhanging), downspout routing, rust, rust streaks or cosmetic staining on vents, pipes, flashing or metal, paint, or anything that is maintenance housekeeping and not a roof repair. Never mention these anywhere, not even as "other things we noticed". When unsure whether something is a real problem, leave it out. Never invent problems.
+- Tone (Justin's rule): honest and calm. No scare tactics, no worst-case language, no "likely leak" or "will rot" unless the footage shows water entry. Say what you see, why it matters in plain words, and what the fix is. Do not pad: one problem, one finding.
 - Priorities: Critical = active failure, water is likely getting in now. High = likely leak source if not fixed soon. Medium = wear or weakness to fix in the normal course. Low = minor, monitor.
 - Categories for low-slope roofs: Parapet & Coping, Transitions & Edges, Field Membrane, Penetrations, Curbs & Equipment, Drainage, Water Evidence. For steep-slope (shingle/metal): Field (Shingles/Panels), Ridge & Hips, Valleys, Flashing & Walls, Penetrations, Edges & Gutters, Ventilation, Water Evidence. Use whichever fits; add one if truly needed.
-- Any number you cannot confirm from the footage or notes is marked "(confirm)".
+- Client-facing text never contains "(confirm)", "to confirm", "style to confirm", "age: confirm" or similar notes to the inspector. If you are not sure of something (age, layers, size, exact product), say "about", "appears" or "looks like", or leave it out. Those details are entered later by the inspector in the CRM.
 - Return ONLY valid JSON. No markdown fences, no commentary.`;
 
 export const jobText = (job: any) => `Job:
@@ -26,10 +27,10 @@ ${jobText(job)}
 
 These images are stills from the inspector's walkthrough video(s), taken every second, plus any photos (${part}). Each image is preceded by its ID and source, e.g. "F12 — Video 0:25" or "P3 — Photo 3". IDs in this batch: ${list}.
 
-Find every problem visible in THIS batch: open joints, separated or open coping, cracked or spalling caps, split/peeling flashing, open or lifted seams, punctures, patches, failing sealant/mastic, unsealed penetrations, curb problems, rust, ponding, debris, water tracks, damaged shingles/panels, flashing, valleys, gutters, interior ceiling stains, etc. If the same problem shows in several frames, report it once using the frame that shows it best. For each, give a tight bounding box [x, y, width, height] as 0-1 fractions from the top-left of THAT image.
+Find every problem visible in THIS batch: open joints, separated or open coping, cracked or spalling caps, split/peeling flashing, open or lifted seams, punctures, patches, failing sealant/mastic, unsealed penetrations, curb problems, ponding, water tracks, damaged shingles/panels, flashing, valleys, a gutter pulled away from the roof edge, interior ceiling stains, etc. Skip anything the Focus rule excludes (gutter debris, tree limbs, rust, downspouts). If the same problem shows in several frames, report it once using the frame that shows it best. For each, give a tight bounding box [x, y, width, height] as 0-1 fractions from the top-left of THAT image.
 
 Interior water evidence (ceiling stains, tiles, drips) goes in "leaks", not "findings".
-Problems that are NOT roof or water-path items (see Scope: siding, paint, windows, sills, trim away from the roof, foundation, decks) go ONLY in "other_notes" as one short plain sentence each, never in "findings".
+Problems that are NOT roof or water-path items (see Scope: siding, paint, windows, sills, trim away from the roof, foundation, decks) go ONLY in "other_notes" as one short plain sentence each, never in "findings". Items the Focus rule excludes (tree limbs, gutter debris, rust, downspouts) are left out entirely, including from "other_notes".
 
 JSON shape:
 {"findings":[{"image":"F12","box":[0.4,0.3,0.2,0.15],"title":"Open gap under metal coping","category":"Parapet & Coping","severity":"High","description":"2-3 sentences: what you see, where, and why it matters."}],
@@ -55,8 +56,8 @@ ${JSON.stringify(batches)}
 
 JSON shape (compact; do not rewrite descriptions):
 {"cover":"<best image ID for the cover from cover_candidates: clean, straight-on, whole building>",
- "roof_system":"one line, e.g. 'White single-ply membrane (exact type to be confirmed), concrete parapets with metal coping on some sections'",
- "facts":[{"label":"Roof system","value":"..."},{"label":"Approx. age","value":"... (confirm)"},{"label":"Layers","value":"..."},{"label":"Approx. size","value":"~N squares (confirm)"},{"label":"Drainage","value":"..."}],
+ "roof_system":"one line, e.g. 'White single-ply membrane (exact type unknown), concrete parapets with metal coping on some sections'",
+ "facts":[{"label":"Roof system","value":"..."},{"label":"Drainage","value":"..."}],
  "size_squares": <number or null>,
  "findings":[{"use":"R12","also":["R40"],"severity":"Critical|High|Medium|Low"}],
  "leaks":[{"use":"L1","also":[],"condition":"short label, e.g. 'Heavy staining'"}]}`;
@@ -96,7 +97,7 @@ JSON shape:
  "safety":["Never work alone...","Watch the edges...", "... (6-9 specific rules for this roof)"],
  "material_rule":{"title":"The Most Important Material Rule","paragraphs":["e.g. for single-ply: only use products made for that membrane; asphalt products ruin it", "..."]},
  "weather_window":"paragraph: temperature, dry-surface and seasonal rules for the products involved",
- "shopping_list":[{"item":"...","used_for":"...","qty":"approx. quantity (confirm)"}],
+ "shopping_list":[{"item":"...","used_for":"...","qty":"approx. quantity"}],
  "basic_method":{"title":"The Basic ... Method","intro":"used in many of the repairs below","need":["..."],"steps":["..."]},
  "maintenance":["twice-a-year checks specific to this roof"],
  "winter":["if winter arrives before you finish ..."],
@@ -125,9 +126,9 @@ export function estimatePrompt(job: any, c: any, roofType: string) {
 You are also the company's estimator. Use current typical contractor COST for materials and labor in ${job.address || "Montana, USA"} (no overhead or profit; that is added separately).
 ${jobText(job)}
 Roof system found: ${c.roof_system}
-Approx. size: ${c.size_squares ? c.size_squares + " squares" : "estimate from what you know (confirm)"}
+Approx. size: ${c.size_squares ? c.size_squares + " squares" : "estimate from what you know"}
 ${c.measuredFor ? c.measuredFor(roofType) : ""}
-${c.measuredFor && /^MEASURED/.test(c.measuredFor(roofType)) ? `USE THE AERIAL MEASUREMENTS ABOVE: Option B materials lines must use exactly these quantities (shingles/panels/membrane, underlayment, ice & water, drip edge, starter, ridge cap, valley metal, flashing, boots) and tear-off/install labor by these squares. Option A uses the measured lengths wherever a repair runs along an edge, ridge, valley or wall. Do not mark measured quantities (confirm); quantities_note says they come from aerial measurements and will be field-verified.` : ""}
+${c.measuredFor && /^MEASURED/.test(c.measuredFor(roofType)) ? `USE THE AERIAL MEASUREMENTS ABOVE: Option B materials lines must use exactly these quantities (shingles/panels/membrane, underlayment, ice & water, drip edge, starter, ridge cap, valley metal, flashing, boots) and tear-off/install labor by these squares. Option A uses the measured lengths wherever a repair runs along an edge, ridge, valley or wall. Do not mark measured quantities as unconfirmed; quantities_note says they come from aerial measurements and will be field-verified.` : ""}
 Facts: ${JSON.stringify(c.facts)}
 Findings: ${JSON.stringify((c.findings || []).map((f: any, i: number) => ({ n: i + 1, title: f.title, category: f.category, severity: f.severity })))}
 Interior leaks: ${(c.leaks || []).length}
@@ -135,7 +136,7 @@ Interior leaks: ${(c.leaks || []).length}
 Build two proposals for a ${roofType} system:
 - Option A — Comprehensive Repair: repair every finding, bringing the existing roof back to watertight.
 - Option B — Full Replacement: complete tear-off (or recover if appropriate, say which) and a new ${roofType} system with all flashings, edge metal, penetrations, insulation/underlayment as appropriate, disposal, permits.
-Every line is either Materials or Labor. Be detailed and realistic (8-24 lines per option). Quantities you can't confirm get "(confirm)" in the description.
+Every line is either Materials or Labor. Be detailed and realistic (8-24 lines per option). Quantities you are unsure of are written as approximate ("about 40 ft"), never with "(confirm)".
 
 JSON shape:
 {"options":[
