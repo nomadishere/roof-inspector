@@ -326,6 +326,12 @@ async function resumeJob() {
   let saved = null; try { saved = JSON.parse(localStorage.getItem(JOB_KEY) || "null"); } catch {}
   const id = q || (saved && Date.now() - saved.at < 86400000 ? saved.id : null);
   if (!id || !/^[0-9a-f-]{36}$/.test(id)) return;
+  // a saved job that already failed, was stopped or finished must never trap the page: clear it and show the form
+  try {
+    const s0 = await api("ri-job", { action: "status", id }, 1);
+    if (s0.status === "error" || s0.status === "uploading" && !q) { try { localStorage.removeItem(JOB_KEY); } catch {} if (q) history.replaceState(null, "", location.pathname); return; }
+    if (s0.status === "done") { try { localStorage.removeItem(JOB_KEY); } catch {} location.replace(new URL("p/?job=" + id, location.href).href); return; }
+  } catch (e) { if (!q) { try { localStorage.removeItem(JOB_KEY); } catch {} return; } }
   showSteps();
   try { await followJob(id); }
   catch (ex) { $("workErr").textContent = ex.message || "Something went wrong."; $("backBtn").hidden = false; }
