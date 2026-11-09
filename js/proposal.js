@@ -26,12 +26,15 @@ function hslToHex(H, S, L) {
   const [r, g, b] = H < 60 ? [c, x, 0] : H < 120 ? [x, c, 0] : H < 180 ? [0, c, x] : H < 240 ? [0, x, c] : H < 300 ? [x, 0, c] : [c, 0, x];
   return "#" + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
 }
-// Terms text -> readable paragraphs: ALL-CAPS lines become headings, every other line its own paragraph.
+// Terms text -> readable layout: ALL-CAPS lines become section headings, "Label: text" lines become clause rows.
 function termsHtml(t) {
   return String(t || "").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => {
-    if (/^[A-Z0-9 &|.,'()\/-]{4,}$/.test(l)) return `<h4 style="margin:20px 0 6px;font-size:13px;letter-spacing:.04em">${esc(l)}</h4>`;
-    const i = l.indexOf(":"), lead = i > 0 && i <= 42 ? l.slice(0, i + 1) : "";
-    return `<p style="margin:0 0 10px">${lead ? "<b>" + esc(lead) + "</b>" + esc(l.slice(i + 1)) : esc(l)}</p>`;
+    if (/^[A-Z0-9 &|.,'()\/-]{4,}$/.test(l)) return `<div style="margin:26px 0 8px;padding:7px 12px;background:var(--tint);border-left:4px solid var(--brand);color:var(--brand);font-weight:700;font-size:12.5px;letter-spacing:.08em">${esc(l)}</div>`;
+    const i = l.indexOf(":"), lead = i > 0 && i <= 42 ? l.slice(0, i) : "";
+    const row = "padding:9px 2px;border-bottom:1px solid #E6E9E6;font-size:14px;line-height:1.55;color:#2B2F2B";
+    return lead
+      ? `<div style="${row}"><div style="color:var(--brand);font-weight:700;font-size:13.5px;margin-bottom:2px">${esc(lead)}</div>${esc(l.slice(i + 1).trim())}</div>`
+      : `<div style="${row}">${esc(l)}</div>`;
   }).join("");
 }
 
