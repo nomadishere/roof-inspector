@@ -103,3 +103,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--g);outline-offse
 .wait[hidden]{display:none}
 .spin{flex:0 0 18px;width:18px;height:18px;margin-top:1px;border:2.5px solid #C9D8EA;border-top-color:#0B2545;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* address suggestions drop-down */
+.places{position:absolute;left:0;right:0;z-index:20;background:#fff;border:1px solid #cfd6d2;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);margin-top:2px;overflow:hidden}
+.places button{display:block;width:100%;text-align:left;padding:12px 14px;border:0;border-bottom:1px solid #eef1ef;background:#fff;font:inherit;font-size:15px;color:#2A2E2C;cursor:pointer}
+.places button:last-child{border-bottom:0}
+.places button:active,.places button:hover{background:#eef4f0}

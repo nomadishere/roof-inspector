@@ -3,6 +3,7 @@ import { loadVideo, grab, planScan, pickBest, sharpness, circle, jpeg, fmtTime, 
 import { render, fitPages, brandVars, parseRefs } from "./report.js";
 import * as acct from "./account.js";
 import * as crm from "./crm-link.js";
+import { attachPlaces } from "./places.js";
 
 const $ = (id) => document.getElementById(id);
 const state = { videos: [], photos: [], work: [], logo: "", model: null, user: null, reportId: null, dirty: false };
@@ -12,6 +13,7 @@ const BRAND_KEY = "roofInspector.brand.v1";
 FONTS.forEach((f, i) => $("font").insertAdjacentHTML("beforeend", `<option value="${i}">${f.name}</option>`));
 ROOF_TYPES.forEach((r) => $("roofTypes").insertAdjacentHTML("beforeend", `<label><input type="checkbox" value="${r.id}"> ${r.label}</label>`));
 $("date").value = new Date().toISOString().slice(0, 10);
+attachPlaces($("address"));
 
 try {
   const saved = JSON.parse(localStorage.getItem(BRAND_KEY) || "null");
