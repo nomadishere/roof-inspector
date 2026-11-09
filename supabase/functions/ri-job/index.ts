@@ -98,24 +98,16 @@ async function runPart(jobId: string, kind: string, idx: number) {
       const lab = Object.fromEntries(ids.map((i) => [i.id, i.label]));
       for (const f of [...(result.findings || []), ...(result.leaks || [])]) f.source = lab[f.image] || "";
     } else if (kind === "merge") {
-      const raw = await partResults(jobId, "vision");
-      const rawF: any = {}, rawL: any = {}, flat: any[] = [], covers: any[] = [], facts: string[] = [], other: string[] = [];
-      raw.forEach((res: any) => {
-        (res.findings || []).forEach((f: any) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
-        (res.leaks || []).forEach((l: any) => { const id = "L" + (Object.keys(rawL).length + 1); rawL[id] = l; flat.push({ id, at: l.source, location: l.location, observed: l.observed }); });
-        covers.push(...(res.cover_candidates || [])); if (res.facts_seen) facts.push(res.facts_seen);
-        for (const o of res.other_notes || []) { const t = String(o || "").trim(); if (t && !other.some((x) => x.toLowerCase().slice(0, 40) === t.toLowerCase().slice(0, 40))) other.push(t.slice(0, 220)); }
-      });
-      const M = await ai(J, "consolidate", [{ type: "text", text: P.consolidatePrompt(job, { items: flat, cover_candidates: covers.slice(0, 20), facts_seen: facts }) }]);
-      const C: any = { cover: M.cover, roof_system: M.roof_system, facts: M.facts, size_squares: M.size_squares, findings: [], leaks: [], other: other.slice(0, 12) };
+      const { rawF, rawL, flat, covers, facts } = mergeInput(await partResults(jobId, "vision"));
+      const slice = flat.slice(idx * MERGE_CHUNK, (idx + 1) * MERGE_CHUNK), ids = new Set(slice.map((x: any) => x.id));
+      const M = await ai(J, "consolidate", [{ type: "text", text: P.consolidatePrompt(job, { items: slice, cover_candidates: covers.slice(0, 20), facts_seen: facts }) }]);
+      const C: any = { cover: M.cover, roof_system: M.roof_system, facts: M.facts, size_squares: M.size_squares, findings: [], leaks: [] };
       const uF = new Set(), uL = new Set();
-      for (const k of M.findings || []) { const f = rawF[k.use]; if (!f || uF.has(k.use)) continue; uF.add(k.use); (k.also || []).forEach((x: string) => uF.add(x)); C.findings.push({ ...f, title: k.title || f.title, severity: k.severity || f.severity }); }
-      for (const k of M.leaks || []) { const l = rawL[k.use]; if (!l || uL.has(k.use)) continue; uL.add(k.use); (k.also || []).forEach((x: string) => uL.add(x)); C.leaks.push({ ...l, condition: k.condition || l.condition || "" }); }
-      for (const id in rawF) if (!uF.has(id)) C.findings.push(rawF[id]);
-      for (const id in rawL) if (!uL.has(id)) C.leaks.push(rawL[id]);
-      if (!C.cover) C.cover = covers[0]?.image || inp.images?.[0]?.id;
+      for (const k of M.findings || []) { const f = rawF[k.use]; if (!f || !ids.has(k.use) || uF.has(k.use)) continue; uF.add(k.use); (k.also || []).forEach((x: string) => uF.add(x)); C.findings.push({ ...f, title: k.title || f.title, severity: k.severity || f.severity }); }
+      for (const k of M.leaks || []) { const l = rawL[k.use]; if (!l || !ids.has(k.use) || uL.has(k.use)) continue; uL.add(k.use); (k.also || []).forEach((x: string) => uL.add(x)); C.leaks.push({ ...l, condition: k.condition || l.condition || "" }); }
+      for (const id in rawF) if (ids.has(id) && !uF.has(id)) C.findings.push(rawF[id]);
+      for (const id in rawL) if (ids.has(id) && !uL.has(id)) C.leaks.push(rawL[id]);
       result = C;
-      await setJob(jobId, { state: { ...st, C } });
     } else if (kind === "plan") {
       const C = st.C;
       result = await ai(J, "plan", [{ type: "text", text: P.planPrompt(job, { roof_system: C.roof_system, facts: C.facts, findings: C.findings.map((f: any, i: number) => ({ n: i + 1, title: f.title, category: f.category, severity: f.severity, description: f.description })), leaks: C.leaks.map(({ location, condition, observed, significance }: any) => ({ location, condition, observed, significance })) }) }]);
@@ -160,16 +152,46 @@ async function measureRoof(J: any) {
   } catch (e) { return { error: "Couldn't measure this roof from the air (" + String((e as Error).message || e).slice(0, 120) + ")." }; }
 }
 
+// Merge runs in chunks of MERGE_CHUNK raw items, each its own part, so one AI answer never runs past the
+// 150 s limit (a 400-still walkthrough produced ~200 findings; one call for all of them timed out).
+const MERGE_CHUNK = 60;
+function mergeInput(raw: any[]) {
+  const rawF: any = {}, rawL: any = {}, flat: any[] = [], covers: any[] = [], facts: string[] = [], other: string[] = [];
+  raw.forEach((res: any) => {
+    (res.findings || []).forEach((f: any) => { const id = "R" + (Object.keys(rawF).length + 1); rawF[id] = f; flat.push({ id, at: f.source, title: f.title, category: f.category, severity: f.severity, description: f.description }); });
+    (res.leaks || []).forEach((l: any) => { const id = "L" + (Object.keys(rawL).length + 1); rawL[id] = l; flat.push({ id, at: l.source, location: l.location, observed: l.observed }); });
+    covers.push(...(res.cover_candidates || [])); if (res.facts_seen) facts.push(res.facts_seen);
+    for (const o of res.other_notes || []) { const t = String(o || "").trim(); if (t && !other.some((x) => x.toLowerCase().slice(0, 40) === t.toLowerCase().slice(0, 40))) other.push(t.slice(0, 220)); }
+  });
+  return { rawF, rawL, flat, covers, facts, other };
+}
+// put the finished merge chunks back together, in walkthrough order
+async function combineMerge(jobId: string, J: any) {
+  if (J.state?.C) return J.state.C;
+  const parts = await partResults(jobId, "merge");
+  const { other, covers } = mergeInput(await partResults(jobId, "vision"));
+  const first = parts.find((p: any) => p.roof_system || p.facts) || parts[0] || {};
+  const C: any = { cover: parts.find((p: any) => p.cover)?.cover || covers[0]?.image || J.input?.images?.[0]?.id, roof_system: first.roof_system, facts: first.facts, size_squares: first.size_squares, findings: parts.flatMap((p: any) => p.findings || []), leaks: parts.flatMap((p: any) => p.leaks || []), other: other.slice(0, 12) };
+  await setJob(jobId, { state: { ...J.state, C } });
+  return C;
+}
+
 const WRITE_KINDS = ["diy_guide", "note", "estimate", "diy_items"];
 async function advance(jobId: string) {
   const J = await getJob(jobId); if (!J || J.status !== "running") return;
   if (J.stage === "vision") {
     const total = J.state?.nBatches || 0, left = await partsLeft(jobId, ["vision"]);
     await setJob(jobId, { progress: `${total - left} of ${total} batches` });
-    if (left === 0 && await claimStage(jobId, "vision", "merge", "Removing duplicates and rating priorities")) { await addParts(jobId, [{ kind: "merge", idx: 0 }]); await kick(jobId, "merge", 0); }
+    if (left === 0 && await claimStage(jobId, "vision", "merge", "Removing duplicates and rating priorities")) {
+      const n = Math.max(1, Math.ceil(mergeInput(await partResults(jobId, "vision")).flat.length / MERGE_CHUNK));
+      const mp = Array.from({ length: n }, (_, i) => ({ kind: "merge", idx: i }));
+      await setJob(jobId, { state: { ...(await getJob(jobId)).state, nMerge: n } });
+      await addParts(jobId, mp); await Promise.all(mp.map((m) => kick(jobId, "merge", m.idx)));
+    }
   } else if (J.stage === "merge") {
     if (await partsLeft(jobId, ["merge"]) === 0) {
-      const n = (J.state?.C?.findings || []).length, nl = (J.state?.C?.leaks || []).length;
+      const C0 = await combineMerge(jobId, J);
+      const n = (C0.findings || []).length, nl = (C0.leaks || []).length;
       if (await claimStage(jobId, "merge", "plan", `${n} findings, ${nl} interior leak locations`)) { await addParts(jobId, [{ kind: "plan", idx: 0 }]); await kick(jobId, "plan", 0); }
     }
   } else if (J.stage === "plan") {
