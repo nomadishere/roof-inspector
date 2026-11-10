@@ -150,13 +150,7 @@ Deno.serve(async (req) => {
   if (!img.ok) return out({ error: "NO_IMAGE", message: "Couldn't load the aerial photo (Maps Static API). " + (await img.text()).slice(0, 200) });
   const b64 = encodeBase64(new Uint8Array(await img.arrayBuffer()));
 
-  // 3b. USGS LiDAR (opt-in: body.lidar === true; the live site and reports stay on Google until Justin flips the default)
   let lid: any = null, lidNote = "";
-  if (b.lidar === true && wtok) {
-    try { const lr = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ri-lidar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: wtok, lat: c.lat, lng: c.lng }) });
-      const lj = await lr.json().catch(() => ({})); if (lj.ok && lj.roof?.areaFt2 > 300) lid = lj; else lidNote = lj.reason || "LiDAR was not available for this address.";
-    } catch { lidNote = "LiDAR was not available for this address."; }
-  }
 
   // 4. Claude traces the edges, then we check the traced outline against Google's footprint and retry once if it's off
   let edges: any = { lines: [] }, cost = 0, check: any = null;
@@ -175,7 +169,7 @@ Deno.serve(async (req) => {
     }
     return { err: "AI busy" };
   };
-  const L: any = await learned(sd.imageryQuality, lid ? "lidar" : "google").catch(() => ({ calib: {}, areaAdj: { f: 1.05, n: 0, kind: "buffer" }, lessons: "" }));
+  let L: any = await learned(sd.imageryQuality, "google").catch(() => ({ calib: {}, areaAdj: { f: 1.05, n: 0, kind: "buffer" }, lessons: "" }));
   if (akey) {
     const info = `Scale: 1 pixel = ${fpp.toFixed(3)} ft. Google measured this roof's footprint (seen from above) at about ${Math.round(groundFt2)} sq ft, which is about ${Math.round(groundFt2 / (fpp * fpp))} square pixels in this image. Google detected ${facets.length} roof planes (pixel boxes [x,y,width,height], pitch in degrees, facing = azimuth):\n` +
       facets.map((f: any) => `#${f.n}: box ${JSON.stringify(f.box)}, pitch ${f.pitchDeg.toFixed(1)}°, facing ${Math.round(f.azimuthDeg)}°, ${Math.round(f.areaFt2)} sq ft`).join("\n") + L.lessons;
@@ -193,7 +187,16 @@ Deno.serve(async (req) => {
       check = { tracedFt2: Math.round(bestA), googleFt2: Math.round(groundFt2), ok: !groundFt2 || off(bestA) <= 0.12 };
     }
   }
+  // 3b. USGS LiDAR (opt-in: body.lidar === true; live site and reports stay on Google until Justin flips the default).
+  // The roof outline Claude traced on the photo clips the LiDAR points, so a neighbouring roof that touches this one is not counted.
+  if (b.lidar === true && wtok) {
+    const mpp0 = fpp / 3.28084, clip = (edges.outline || []).filter((q: any) => Array.isArray(q) && q.length === 2).map((q: number[]) => [(q[0] - (SIZE * SCALE) / 2) * mpp0, -(q[1] - (SIZE * SCALE) / 2) * mpp0]);
+    try { const lr = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ri-lidar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: wtok, lat: c.lat, lng: c.lng, ...(clip.length >= 3 ? { clip, margin: 1.5 } : {}) }) });
+      const lj = await lr.json().catch(() => ({})); if (lj.ok && lj.roof?.areaFt2 > 300) { lid = lj; lid.clipped = clip.length >= 3; } else lidNote = lj.reason || "LiDAR was not available for this address.";
+    } catch { lidNote = "LiDAR was not available for this address."; }
+  }
   if (lid) {
+    L = await learned("LIDAR", "lidar").catch(() => L);
     const mpp = fpp / 3.28084, px = (p: number[]) => [Math.round((SIZE * SCALE) / 2 + p[0] / mpp), Math.round((SIZE * SCALE) / 2 - p[1] / mpp)];
     const keep = (edges.lines || []).filter((l: any) => !["eave", "rake", "edge"].includes(l.type));
     const ridges = keep.filter((l: any) => l.type === "ridge"), hipLen = keep.filter((l: any) => l.type === "hip").reduce((s: number, l: any) => s + Math.hypot(l.x2 - l.x1, l.y2 - l.y1), 0) * fpp;

@@ -87,12 +87,17 @@ export type LidarResult = {
   debug?: { planes: { a: number; b: number; c: number; idx: number[] }[]; kept: number[]; comp: number[] };
 };
 
-export function analyze(c: Cloud, opt: { debug?: boolean } = {}): LidarResult {
+export function analyze(c: Cloud, opt: { debug?: boolean; clip?: number[][]; margin?: number } = {}): LidarResult {
   const { n, x: X, y: Y, z: Z } = c;
   const h = heightAboveGround(c);
   // 1. candidate roof points: single return, 2 m to 15 m above ground, not ground / noise
   const cand: number[] = [];
   for (let i = 0; i < n; i++) if (c.cl[i] !== 2 && c.cl[i] !== 7 && c.cl[i] !== 18 && c.nr[i] === 1 && h[i] >= 2 && h[i] <= 15) cand.push(i);
+  // optional clip: polygon in local metres (the roof outline traced on the photo), grown by `margin`. Neighbour roofs that touch the building but lie outside it are dropped.
+  if (opt.clip && opt.clip.length >= 3) { const P = opt.clip, mg = opt.margin ?? 1.5;
+    const inside = (x: number, y: number) => { let ins = false; for (let a = 0, b = P.length - 1; a < P.length; b = a++) { if ((P[a][1] > y) !== (P[b][1] > y) && x < ((P[b][0] - P[a][0]) * (y - P[a][1])) / (P[b][1] - P[a][1]) + P[a][0]) ins = !ins; } return ins; };
+    const dist = (x: number, y: number) => { let d = Infinity; for (let a = 0, b = P.length - 1; a < P.length; b = a++) { const dx = P[b][0] - P[a][0], dy = P[b][1] - P[a][1], L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((x - P[a][0]) * dx + (y - P[a][1]) * dy) / L)) : 0; d = Math.min(d, Math.hypot(x - (P[a][0] + t * dx), y - (P[a][1] + t * dy))); } return d; };
+    for (let q = cand.length - 1; q >= 0; q--) { const i = cand[q]; if (!inside(X[i], Y[i]) && dist(X[i], Y[i]) > mg) cand.splice(q, 1); } }
   if (cand.length < 30) return { ok: false, reason: "No building-height points found at this address." };
   // 2. keep points whose neighbourhood is a flat plane (drops trees, ridges and edges)
   const gc = new Grid(X, Y, cand, 2);

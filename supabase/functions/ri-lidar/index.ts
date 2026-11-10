@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
   const b64 = (a: ArrayBufferView) => { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ""; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); };
   if (b.points) return out({ lat, lng, dataset: chosen[0], year: chosen[1], n: xs.length, x: b64(Float32Array.from(xs)), y: b64(Float32Array.from(ys)), z: b64(Float64Array.from(zs)), rn: b64(Uint8Array.from(rn)), nr: b64(Uint8Array.from(nr)), cl: b64(Uint8Array.from(cl)) });
   const cloud = { n: xs.length, x: Float32Array.from(xs), y: Float32Array.from(ys), z: Float64Array.from(zs), rn, nr, cl };
-  const r = analyze(cloud, {}); lap("analyze_ms");
+  const clip = Array.isArray(b.clip) && b.clip.length >= 3 && b.clip.length <= 400 && b.clip.every((q: any) => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1])) ? b.clip.map((q: number[]) => [+q[0], +q[1]]) : undefined;
+  const r = analyze(cloud, { clip, margin: isFinite(+b.margin) ? Math.max(0, Math.min(4, +b.margin)) : 1.5 }); lap("analyze_ms");
   return out({ ...r, lat, lng, dataset: chosen[0], year: chosen[1], tiles: keys.length, pointsRead: total, pointsInWindow: xs.length, T });
 });
