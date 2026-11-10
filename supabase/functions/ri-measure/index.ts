@@ -49,9 +49,10 @@ Return ONLY JSON:
 // People fix traced edge lengths on the measure page (or enter tape / EagleView numbers). For each edge type we take the
 // median of corrected ÷ traced over past roofs (tape and EagleView count 3×), prefer roofs with the same photo quality,
 // and only use a type once 3+ roofs agree. Factors are capped at 0.75–1.35 so a few bad entries can't wreck a measurement.
-async function learned(quality: string) {
+async function learned(quality: string, method = "google") {
   const { data } = await db.from("ri_corrections").select("traced,corrected,source,quality").gte("updated_at", new Date(Date.now() - 365 * 864e5).toISOString()).limit(2000);
-  const rows = data || [];
+  const isL = (c: any) => String(c.quality || "").toUpperCase() === "LIDAR"; // corrections are tagged with the method; each method only learns from its own
+  const rows = (data || []).filter((c: any) => (method === "lidar" ? isL(c) : !isL(c)));
   const build = (list0: any[]) => { let list = list0;
     const r: Record<string, number[]> = {};
     // Eaves vs rakes are often mislabeled by the tracer, so learn them TOGETHER as one perimeter factor
@@ -90,11 +91,9 @@ Deno.serve(async (req) => {
   let b: any = {}; try { b = await req.json(); } catch {}
   let ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
   // called by Roofly's own report builder (ri-job): skip the per-visitor limit, log against the visitor's IP
-  let internal = false;
-  if (b.token) {
-    const { data: t } = await db.from("admin_secrets").select("value").eq("name", "RI_WORKER_TOKEN").maybeSingle();
-    if (t?.value && b.token === t.value) { internal = true; ip = String(b.ip || "job").slice(0, 64); }
-  }
+  let internal = false, wtok = "";
+  { const { data: t } = await db.from("admin_secrets").select("value").eq("name", "RI_WORKER_TOKEN").maybeSingle(); wtok = t?.value || "";
+    if (b.token && wtok && b.token === wtok) { internal = true; ip = String(b.ip || "job").slice(0, 64); } }
 
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
   const { data: spent } = await db.from("ri_usage").select("cost_usd").gte("created_at", monthStart.toISOString());
@@ -151,6 +150,14 @@ Deno.serve(async (req) => {
   if (!img.ok) return out({ error: "NO_IMAGE", message: "Couldn't load the aerial photo (Maps Static API). " + (await img.text()).slice(0, 200) });
   const b64 = encodeBase64(new Uint8Array(await img.arrayBuffer()));
 
+  // 3b. USGS LiDAR (opt-in: body.lidar === true; the live site and reports stay on Google until Justin flips the default)
+  let lid: any = null, lidNote = "";
+  if (b.lidar === true && wtok) {
+    try { const lr = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ri-lidar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: wtok, lat: c.lat, lng: c.lng }) });
+      const lj = await lr.json().catch(() => ({})); if (lj.ok && lj.roof?.areaFt2 > 300) lid = lj; else lidNote = lj.reason || "LiDAR was not available for this address.";
+    } catch { lidNote = "LiDAR was not available for this address."; }
+  }
+
   // 4. Claude traces the edges, then we check the traced outline against Google's footprint and retry once if it's off
   let edges: any = { lines: [] }, cost = 0, check: any = null;
   const akey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -168,7 +175,7 @@ Deno.serve(async (req) => {
     }
     return { err: "AI busy" };
   };
-  const L: any = await learned(sd.imageryQuality).catch(() => ({ calib: {}, areaAdj: { f: 1.05, n: 0, kind: "buffer" }, lessons: "" }));
+  const L: any = await learned(sd.imageryQuality, lid ? "lidar" : "google").catch(() => ({ calib: {}, areaAdj: { f: 1.05, n: 0, kind: "buffer" }, lessons: "" }));
   if (akey) {
     const info = `Scale: 1 pixel = ${fpp.toFixed(3)} ft. Google measured this roof's footprint (seen from above) at about ${Math.round(groundFt2)} sq ft, which is about ${Math.round(groundFt2 / (fpp * fpp))} square pixels in this image. Google detected ${facets.length} roof planes (pixel boxes [x,y,width,height], pitch in degrees, facing = azimuth):\n` +
       facets.map((f: any) => `#${f.n}: box ${JSON.stringify(f.box)}, pitch ${f.pitchDeg.toFixed(1)}°, facing ${Math.round(f.azimuthDeg)}°, ${Math.round(f.areaFt2)} sq ft`).join("\n") + L.lessons;
@@ -186,13 +193,30 @@ Deno.serve(async (req) => {
       check = { tracedFt2: Math.round(bestA), googleFt2: Math.round(groundFt2), ok: !groundFt2 || off(bestA) <= 0.12 };
     }
   }
+  if (lid) {
+    const mpp = fpp / 3.28084, px = (p: number[]) => [Math.round((SIZE * SCALE) / 2 + p[0] / mpp), Math.round((SIZE * SCALE) / 2 - p[1] / mpp)];
+    const keep = (edges.lines || []).filter((l: any) => !["eave", "rake", "edge"].includes(l.type));
+    const ridges = keep.filter((l: any) => l.type === "ridge"), hipLen = keep.filter((l: any) => l.type === "hip").reduce((s: number, l: any) => s + Math.hypot(l.x2 - l.x1, l.y2 - l.y1), 0) * fpp;
+    // direction of the traced ridges: outline edges that run along it are eaves; the ones across it are rakes (gable ends) unless the roof has hips
+    let sx = 0, sy = 0; for (const l of ridges) { const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1), w = Math.hypot(l.x2 - l.x1, l.y2 - l.y1); sx += w * Math.cos(2 * a); sy += w * Math.sin(2 * a); }
+    const ra = ridges.length ? Math.atan2(sy, sx) / 2 : null;
+    const steepA = lid.faces.filter((f: any) => !f.flat).reduce((s: number, f: any) => s + f.areaFt2, 0), flat = steepA < 0.4 * lid.roof.areaFt2;
+    const O = (lid.outline || []).map(px), ol: any[] = [];
+    for (let i = 0; i < O.length; i++) { const a = O[i], z = O[(i + 1) % O.length]; if (Math.hypot(z[0] - a[0], z[1] - a[1]) < 1) continue;
+      let type = "eave"; if (flat) type = "edge"; else if (ra !== null && hipLen < 15) { let d = Math.abs(Math.atan2(z[1] - a[1], z[0] - a[0]) - ra) % Math.PI; d = Math.min(d, Math.PI - d); if (d > Math.PI / 4) type = "rake"; }
+      ol.push({ type, x1: a[0], y1: a[1], x2: z[0], y2: z[1] }); }
+    const ratio = groundFt2 ? lid.roof.planFt2 / groundFt2 : 1;
+    const warn = ratio > 1.35 ? ` LiDAR found ${Math.round((ratio - 1) * 100)}% more roof than Google's footprint (an attached section, addition or a neighbouring roof joined to this one): confirm which sections are part of this job. Ridge, hip and valley lines are traced only for the section Google found.` : "";
+    edges = { ...edges, lines: [...keep, ...ol], notes: ((edges.notes || "") + " Area, pitch and edges come from USGS LiDAR (" + lid.year + ") with the 5% safety buffer; ridges, hips and valleys are traced from the photo." + warn).trim() };
+    check = { ...(check || {}), lidarRatio: +ratio.toFixed(2) };
+  }
   await db.from("ri_usage").insert({ ip, step: "measure", input_tokens: 0, output_tokens: 0, cost_usd: cost + 0.012 });
 
   return out({
     formatted, location: c, zoom: z, ftPerPx: fpp,
-    quality: sd.imageryQuality, imageryDate: sd.imageryDate,
-    roof: { areaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639 * L.areaAdj.f, rawAreaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639, groundFt2: (sp.wholeRoofStats?.groundAreaMeters2 || 0) * 10.7639 },
-    facets, edges, check, calib: L.calib, areaAdj: L.areaAdj,
+    quality: lid ? "LIDAR" : sd.imageryQuality, imageryDate: lid ? { year: lid.year, month: "LiDAR" } : sd.imageryDate, method: lid ? "lidar" : "google", lidar: lid ? { dataset: lid.dataset, year: lid.year, density: lid.density, coverage: lid.coverage, tiles: lid.tiles, dripEdgeFt: lid.roof.dripEdgeFt, eaveFt: lid.roof.eaveFt, rakeFt: lid.roof.rakeFt, planFt2: lid.roof.planFt2, outline: lid.outline, otherBuildings: lid.otherBuildings } : (lidNote ? { unavailable: lidNote } : null),
+    roof: lid ? { areaFt2: lid.roof.areaFt2 * L.areaAdj.f, rawAreaFt2: lid.roof.areaFt2, groundFt2: lid.roof.planFt2, googleAreaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639, googleGroundFt2: groundFt2 } : { areaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639 * L.areaAdj.f, rawAreaFt2: (sp.wholeRoofStats?.areaMeters2 || 0) * 10.7639, groundFt2: (sp.wholeRoofStats?.groundAreaMeters2 || 0) * 10.7639 },
+    facets: lid ? lid.faces.map((f: any) => ({ n: f.n, pitchDeg: f.tiltDeg, azimuthDeg: f.azimuth, areaFt2: f.areaFt2, groundFt2: f.planFt2, heightFt: 0, box: [0, 0, 0, 0] })) : facets, edges, check, calib: L.calib, areaAdj: L.areaAdj,
     image: "data:image/png;base64," + b64,
   });
 });
