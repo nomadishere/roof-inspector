@@ -1,83 +1,377 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Roofly — branded roof inspection reports from a video</title>
-<meta name="description" content="Upload a roof video and your logo. Get a professional, branded roof inspection report with circled photos, a DIY repair plan and an estimate.">
+<script>
+/* Old links keep working: report links (?job=), password resets, CRM links and the quick pages go straight to the builder. */
+(function(){var q=location.search;
+ if(/[?&](job|reset_token|link|me|id)=/.test(q)){location.replace('/build/'+q+location.hash);return}
+ document.documentElement.classList.remove('no-js');})();
+</script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Roofly: branded roof inspection reports from one phone video</title>
+<meta name="description" content="Film the roof, add your logo, and Roofly builds a branded inspection report with circled problem photos, aerial measurements and priced options. Free to start.">
+<meta name="theme-color" content="#ffffff">
+<link rel="canonical" href="https://useroofly.com/">
 <meta property="og:type" content="website">
+<meta property="og:title" content="Roofly: film the roof, send a report with your name on it">
+<meta property="og:description" content="One phone video in. A branded roof inspection report out, with circled photos, aerial measurements and priced options.">
+<meta property="og:url" content="https://useroofly.com/">
 <meta property="og:site_name" content="Roofly">
-<meta property="og:title" content="Roofly — branded roof inspection reports from a video">
-<meta property="og:description" content="Roof video in, branded report out. Circled photos, measurements, a repair plan and an estimate in your logo and colors.">
 <meta property="og:image" content="https://useroofly.com/img/og.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:url" content="https://useroofly.com/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://useroofly.com/img/og.png?v=2">
-<link rel="icon" href="/brand/roofly-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/css/app.css?v=b6">
-<script>
-// Old links (report emails, password resets, CRM link codes, /justin) point at the root with these
-// parameters. Forward them to the form so they keep working. Plain visits and ?v=… stay on this page.
-(function () {
-  var p = new URLSearchParams(location.search);
-  if (["job", "link", "me", "reset_token"].some(function (k) { return p.has(k); })) {
-    location.replace("/build/" + location.search + location.hash);
-  }
-})();
-</script>
-<style>
-.home h1{font-size:clamp(28px,7vw,44px);line-height:1.1;margin:14px 0 12px;color:#0B2545}
-.home .lead{font-size:18px;line-height:1.5;color:var(--muted);margin:0 0 20px}
-.home .cta{display:flex;flex-direction:column;gap:10px;margin:0 0 8px}
-.home .cta .btn{text-decoration:none;text-align:center}
-.home h2{font-size:20px;margin:30px 0 12px;color:#0B2545}
-.home .steps{display:grid;gap:12px;grid-template-columns:1fr;margin:0;padding:0;list-style:none}
-@media (min-width:620px){.home .steps{grid-template-columns:repeat(3,1fr)}}
-.home .steps li{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
-.home .steps b{display:block;margin:8px 0 4px;font-size:16px}
-.home .steps span.n{display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--g);color:#fff;font-weight:800;font-size:14px;align-items:center;justify-content:center}
-.home .steps p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
-.home ul.get{margin:0;padding:0;list-style:none;display:grid;gap:8px}
-.home ul.get li{background:#fff;border:1px solid var(--line);border-left:4px solid var(--g);border-radius:10px;padding:12px 14px;font-size:15px;line-height:1.4}
-.home .final{margin:32px 0 0;text-align:center}
-</style>
+<link rel="icon" href="brand/roofly-icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/site.css?v=1">
 </head>
 <body>
-<header class="topbar">
-  <a class="logo" href="/" aria-label="Roofly home"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><path d="M14 54 L50 22 L86 54" fill="none" stroke="currentColor" stroke-width="11" stroke-linejoin="miter"/><rect x="30" y="68" width="40" height="11" fill="currentColor"/></svg><span>Roofly</span></a>
-  <a class="btn small" href="/build/">Log in / Sign up</a>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Roofly home"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><path d="M14 54 L50 22 L86 54" fill="none" stroke="currentColor" stroke-width="11"/><rect x="30" y="68" width="40" height="11" fill="currentColor"/></svg>Roofly</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#how">How it works</a><a href="#report">Sample report</a><a href="#measure">Measuring</a><a href="#brand">Your brand</a><a href="#faq">FAQ</a>
+    </nav>
+    <div class="acts">
+      <a class="btn g sm" href="/build/">Log in</a>
+      <a class="btn p sm" href="/build/" data-cta="nav">Start free</a>
+    </div>
+  </div>
 </header>
 
-<main class="wrap home">
-  <h1>Turn a roof video into a professional inspection report.</h1>
-  <p class="lead">Walk the roof with your phone. Roofly sends back a report in your logo and colors, with problems circled on the photos, a repair plan and an estimate. Free.</p>
-  <div class="cta">
-    <a class="btn primary big" href="/build/">Build my report</a>
-    <a class="btn" href="/measure/">Just need measurements? Enter an address</a>
+<main id="top">
+<!-- HERO: logo → headline → CTA, with a film of real report screens -->
+<section class="hero" aria-labelledby="h1">
+  <div class="aura" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="txt">
+      <span class="eyebrow rv">Roof reports from a walk-around video</span>
+      <h1 id="h1" class="rv d1">Film the roof. <span class="grad">Send a report with your name on it.</span></h1>
+      <p class="lede rv d2">Roofly turns one phone video into a branded inspection report: problem photos circled and timed, the roof measured from above, and priced options your client can act on.</p>
+      <div class="ctas rv d3">
+        <a class="btn p" href="/build/" data-cta="hero">Build my report
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn g" href="#report" data-cta="hero-see">See a sample report</a>
+      </div>
+      <div class="micro rv d3"><span>Free to start</span><span>No card</span><span>Your logo and colors</span></div>
+    </div>
+
+    <div class="film" id="film" role="region" aria-roledescription="carousel" aria-label="How a Roofly report comes together">
+      <div class="f-stage">
+        <div class="f-glow" aria-hidden="true"></div>
+
+        <div class="f-scene on" data-i="0">
+          <div class="f-phone"><div class="scr">
+            <div class="mock up">
+              <div class="m-top"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 54 L50 22 L86 54" fill="none" stroke="currentColor" stroke-width="11"/><rect x="30" y="68" width="40" height="11" fill="currentColor"/></svg>Roofly</div>
+              <p class="m-h"><i>1</i> Upload the roof</p>
+              <div class="m-drop"><b>Add video(s)</b><span>MP4 or MOV from your phone</span></div>
+              <div class="m-file"><span>walk-around.mov</span><em>0:58</em></div>
+              <p class="m-h"><i>2</i> The job</p>
+              <div class="m-field">123 Main St, Livingston, MT</div>
+              <div class="m-chips"><span class="on">Shingles</span><span>EPDM</span><span>Metal</span></div>
+              <p class="m-h"><i>3</i> Your brand</p>
+              <div class="m-dots"><span style="background:#16603A"></span><span style="background:#0B2545"></span><span style="background:#b3261e"></span><span style="background:#c2570c"></span></div>
+              <div class="m-btn">Build my report</div>
+            </div>
+            <i class="tap" style="left:50%;top:92%"></i></div></div>
+          <div class="f-chip"><span class="dot"></span><b>1 video</b> needed</div>
+          <div class="f-words"><span class="f-k">Step 1 &middot; Upload</span><p class="f-h">One video in. <em>Your logo on it.</em></p><span class="f-s">A steady walk-around is enough.</span></div>
+        </div>
+
+        <div class="f-scene" data-i="1">
+          <div class="f-phone"><div class="scr">
+            <div class="mock fnd">
+              <div class="m-top">Finding 7 of 31<em>Sample</em></div>
+              <svg class="shingles" viewBox="0 0 300 250" aria-hidden="true">
+                <defs><pattern id="sh" width="50" height="26" patternUnits="userSpaceOnUse"><rect width="50" height="26" fill="#58605b"/><rect x="1" y="1" width="48" height="11" rx="2" fill="#6b746e"/><rect x="-24" y="14" width="48" height="11" rx="2" fill="#4f5752"/><rect x="26" y="14" width="48" height="11" rx="2" fill="#626a65"/></pattern></defs>
+                <rect width="300" height="250" fill="url(#sh)"/>
+                <path d="M122 96 l60 -4 l8 30 l-66 6z" fill="#2f3532"/><path d="M122 96 l60 -4 l-2 -8 l-58 5z" fill="#8a938d"/>
+                <circle class="ring" cx="156" cy="108" r="46" fill="none" stroke="#e5342f" stroke-width="7"/>
+              </svg>
+              <p class="m-t">Lifted shingles near the ridge<em>Video 0:42</em></p>
+              <p class="m-p"><span>Repair soon</span></p>
+              <p class="m-b">Water can get under the open tabs. Re-seal or replace these shingles before the next storm.</p>
+              <div class="m-rows"><i></i><i></i></div>
+            </div>
+            <i class="tap" style="left:50%;top:42%"></i></div></div>
+          <div class="f-chip"><span class="dot"></span>Timestamp <b>0:42</b></div>
+          <div class="f-words"><span class="f-k">Step 2 &middot; Findings</span><p class="f-h">Problems get <em>circled and timed.</em></p><span class="f-s">Every photo shows where in the video it came from.</span></div>
+        </div>
+
+        <div class="f-scene" data-i="2">
+          <div class="f-phone"><div class="scr"><img src="img/roofly-measure.webp" alt="Roofly roof measurement with every edge traced and labeled in feet" style="--ox:50%;--oy:30%"><i class="tap" style="left:50%;top:30%"></i></div></div>
+          <div class="f-chip"><span class="dot"></span><b>29.2 sq</b> 7/12 pitch</div>
+          <div class="f-words"><span class="f-k">Step 3 &middot; Measurements</span><p class="f-h">Every edge <em>measured from above.</em></p><span class="f-s">Eaves, rakes, ridges, hips and valleys.</span></div>
+        </div>
+
+        <div class="f-scene" data-i="3">
+          <div class="f-phone"><div class="scr"><img src="img/proposal-page.webp" alt="Roofly report page with priced options for the client to choose from" style="--ox:50%;--oy:58%"><i class="tap" style="left:50%;top:62%"></i></div></div>
+          <div class="f-chip"><span class="dot"></span><b>Priced</b> options</div>
+          <div class="f-words"><span class="f-k">Step 4 &middot; Send it</span><p class="f-h">Options your client <em>can act on.</em></p><span class="f-s">Share a link or download the PDF.</span></div>
+        </div>
+      </div>
+      <div class="f-bar">
+        <div class="segs">
+          <button type="button" class="run" aria-label="1: Film the roof and add your logo" aria-current="true"><i></i></button>
+          <button type="button" aria-label="2: Problems circled and timed"><i></i></button>
+          <button type="button" aria-label="3: Every edge measured from above"><i></i></button>
+          <button type="button" aria-label="4: Options your client can act on"><i></i></button>
+        </div>
+        <button class="reel-pp" id="reelPP" type="button" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ps" d="M8 5v14M16 5v14"/><path class="pl" d="M7 5l12 7-12 7z"/></svg></button>
+      </div>
+    </div>
   </div>
+</section>
 
-  <h2>How it works</h2>
-  <ol class="steps">
-    <li><span class="n">1</span><b>Film the roof</b><p>One steady walk-around video. Pause a couple of seconds on each problem. The video stays on your phone.</p></li>
-    <li><span class="n">2</span><b>Add your brand</b><p>Your logo, color, company details and the property address. We measure the roof from the air.</p></li>
-    <li><span class="n">3</span><b>Get your report</b><p>Ready in about five minutes. Review it, edit it, then download a PDF or share a link.</p></li>
-  </ol>
-
-  <h2>What's in every report</h2>
-  <ul class="get">
-    <li>Photos with each problem circled in red and tagged with its video time</li>
-    <li>Aerial roof measurements: area, pitch and edge lengths</li>
-    <li>Materials and labor estimate for shingles, EPDM or metal</li>
-    <li>Optional DIY repair guide and repair-versus-replace options</li>
-    <li>Your logo, colors, note and references on every page</li>
-  </ul>
-
-  <div class="final">
-    <a class="btn primary big" href="/build/">Build my report</a>
-    <p class="fine">Estimates are AI-generated from the video and should be confirmed on site.</p>
+<!-- PROOF -->
+<section class="proof" aria-label="At a glance">
+  <div class="wrap">
+    <div class="s rv"><b>~5 min</b><span>to build a full report</span></div>
+    <div class="s rv d1"><b>$0</b><span>to start, no card</span></div>
+    <div class="s rv d2"><b>1 video</b><span>is all you need to upload</span></div>
+    <div class="s rv d3"><b>PDF + link</b><span>to send it to your client</span></div>
   </div>
+</section>
+
+<!-- PAIN -->
+<section class="sec" id="why" aria-labelledby="h-pain">
+  <div class="wrap">
+    <div class="head c">
+      <span class="eyebrow rv">Sound familiar?</span>
+      <h2 id="h-pain" class="rv d1">The roof takes an hour. The write-up takes your evening.</h2>
+      <p class="lede rv d2">Most inspectors lose the job in the gap between the walk-around and the report.</p>
+    </div>
+    <div class="pains">
+      <article class="card pain rv"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg></div>
+        <h3>Typing it all up at night</h3><p>You scroll through the video, screenshot problems, and write each one by hand.</p><p class="cost">Roofly watches the video for you</p></article>
+      <article class="card pain rv d1"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+        <h3>A report that looks like a template</h3><p>Clients can tell when the document could belong to anyone. Yours should look like your company.</p><p class="cost">Your logo, colors and font on every page</p></article>
+      <article class="card pain rv d2"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+        <h3>Paying and waiting for measurements</h3><p>You order an aerial report, then wait a day or two while the owner calls someone else.</p><p class="cost">Roofly measures from the address</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="sec tint" id="how" aria-labelledby="h-how">
+  <div class="wrap">
+    <div class="head c">
+      <span class="eyebrow rv">How it works</span>
+      <h2 id="h-how" class="rv d1">Video in. Finished report out.</h2>
+      <p class="lede rv d2">You only have to stay on the page while the stills upload, about a minute or two. Roofly builds the rest on its own servers and emails you a link.</p>
+    </div>
+    <div class="steps">
+      <article class="card step rv"><div class="n"><span>0:00</span></div><h3>Film the roof</h3><p>Walk it with your phone. Start with one straight-on shot of the whole building, because that becomes your cover. Pause a couple of seconds on each problem.</p></article>
+      <article class="card step rv d1"><div class="n"><span>~1 to 2 min</span></div><h3>Add the job and upload</h3><p>Type the address, pick the roof type, add your logo and colors. Your phone picks the sharpest stills from the video and uploads them.</p></article>
+      <article class="card step rv d2"><div class="n"><span>~5 min</span></div><h3>Roofly builds the report</h3><p>Findings with circled photos, aerial measurements and priced options. You get an email with a link when it is done, even if you closed the page.</p></article>
+    </div>
+    <div class="timeline" aria-hidden="true"><i id="tl"></i></div>
+    <div class="tl-lab" aria-hidden="true"><span>Video filmed</span><span>Stills uploaded</span><span>Report ready</span></div>
+  </div>
+</section>
+
+<!-- SAMPLE REPORT -->
+<section class="sec" id="report" aria-labelledby="h-report">
+  <div class="wrap split">
+    <div class="txt">
+      <span class="eyebrow rv">What your client gets</span>
+      <h2 id="h-report" class="rv d1">A real report, not a photo dump.</h2>
+      <p class="lede rv d2">Built in the same order as the reports Lucky Line Roofing sends in Montana, so your client can read it from top to bottom without a phone call.</p>
+      <ul class="ticks rv d3">
+        <li><div><b>A cover from your own footage.</b> <span>The first straight-on shot of the building.</span></div></li>
+        <li><div><b>Problems circled in red.</b> <span>Each photo is captioned and shows the video timestamp it came from.</span></div></li>
+        <li><div><b>The roof measured from above.</b> <span>Area, squares with waste, pitch, every edge length and a materials list.</span></div></li>
+        <li><div><b>Priced options.</b> <span>Full replacement, plus an optional repair-only option next to it.</span></div></li>
+        <li><div><b>An optional DIY repair guide.</b> <span>Safety rules, a shopping list and steps for every finding. Off unless you turn it on.</span></div></li>
+      </ul>
+      <p class="rv d3" style="margin-top:26px"><a class="btn p" href="/build/" data-cta="report">Build my report</a></p>
+    </div>
+    <div class="media rv d1">
+      <div class="duo">
+        <div class="phone back"><div class="scr"><img src="img/proposal-page.webp" alt="Roofly report page with priced options" loading="lazy"></div></div>
+        <div class="phone front"><div class="scr"><img src="img/roofly-measure.webp" alt="Roofly report page with the roof measured and every edge labeled" loading="lazy"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEASURING -->
+<section class="sec measure tint" id="measure" aria-labelledby="h-measure">
+  <div class="wrap split">
+    <div class="txt">
+      <span class="badge rv">Included in every report</span>
+      <h2 id="h-measure" class="rv d1" style="margin-top:18px">Measure the roof from the address.</h2>
+      <p class="lede rv d2">Roofly pulls Google's roof data and the aerial photo, then AI traces every edge. You get area, squares with waste, pitch and edge lengths, plus a materials list that feeds the estimate.</p>
+      <ul class="ticks rv d3">
+        <li><div><b>No per-report fee.</b> <span>Measure as many roofs as you like.</span></div></li>
+        <li><div><b>Minutes, not days.</b> <span>No ordering, no waiting on an email.</span></div></li>
+        <li><div><b>Check it before you order.</b> <span>Edges are labeled in feet so you can spot a trace that looks off.</span></div></li>
+      </ul>
+      <div class="race rv" id="race" aria-label="Time and cost to get roof measurements">
+        <div class="row"><span class="nm">EagleView</span><div class="bar"><i data-w="100"></i></div><span class="val">24–48 h · $24–87</span></div>
+        <div class="row"><span class="nm">Roofr</span><div class="bar"><i data-w="45"></i></div><span class="val">2–24 h · $13–19</span></div>
+        <div class="row me"><span class="nm">Roofly</span><div class="bar"><i data-w="4"></i></div><span class="val">minutes · $0</span></div>
+        <span class="note">Competitor turnaround and per-report prices from their public pricing pages and 2026 reviews, checked November 2026. Bar length = typical wait.</span>
+      </div>
+      <p class="rv" style="margin-top:22px"><a class="btn g" href="/measure/" data-cta="measure">Try the free measure tool</a></p>
+    </div>
+    <div class="media rv d1">
+      <div class="roofbox" id="roofbox">
+        <div class="sat"></div>
+        <svg viewBox="0 0 400 330" aria-hidden="true">
+          <g opacity=".9">
+            <rect x="58" y="62" width="284" height="196" rx="4" fill="#3b3f3c"/>
+            <rect x="160" y="180" width="110" height="112" rx="3" fill="#353936"/>
+            <rect x="20" y="276" width="120" height="40" rx="6" fill="#1d2a20" opacity=".6"/>
+            <circle cx="360" cy="40" r="26" fill="#1f3322"/><circle cx="34" cy="70" r="20" fill="#1f3322"/>
+          </g>
+          <polygon class="facet" points="58,62 342,62 270,120 130,120"/>
+          <polygon class="facet" points="58,258 130,120 270,120 342,258" style="transition-delay:.15s"/>
+          <polygon class="facet" points="58,62 130,120 58,258" style="transition-delay:.3s"/>
+          <polygon class="facet" points="342,62 270,120 342,258" style="transition-delay:.45s"/>
+          <polygon class="facet" points="160,258 215,200 270,258 270,292 160,292" style="transition-delay:.6s"/>
+          <g class="edges">
+            <path class="edge" stroke="#7ee8b4" d="M130 120 H270"/>
+            <path class="edge" stroke="#ffd07a" d="M58 62 L130 120 M342 62 L270 120 M58 258 L130 120 M342 258 L270 120"/>
+            <path class="edge" stroke="#ff7ab0" d="M215 200 L160 258 M215 200 L270 258"/>
+            <path class="edge" stroke="#8fb8ff" d="M58 62 H342 M58 258 H160 M270 258 H342 M160 292 H270"/>
+            <path class="edge" stroke="#c9a7ff" d="M58 62 V258 M342 62 V258 M160 258 V292 M270 258 V292"/>
+          </g>
+        </svg>
+        <div class="scan"></div>
+        <div class="legend"><span><i style="background:#7ee8b4"></i>Ridge</span><span><i style="background:#ffd07a"></i>Hip</span><span><i style="background:#ff7ab0"></i>Valley</span><span><i style="background:#8fb8ff"></i>Eave</span><span><i style="background:#c9a7ff"></i>Rake</span></div>
+        <div class="readout">
+          <div><b data-to="3146" data-fmt="int">0</b><span>sq ft</span></div>
+          <div><b data-to="34.6" data-fmt="1">0</b><span>squares +10%</span></div>
+          <div><b>6/12</b><span>main pitch</span></div>
+          <div><b data-to="412" data-fmt="int">0</b><span>ft of edges</span></div>
+        </div>
+      </div>
+      <p class="demo-note">Illustration of a traced roof, not a real property.</p>
+    </div>
+  </div>
+</section>
+
+<!-- BRAND TRY-ON -->
+<section class="sec" id="brand" aria-labelledby="h-brand">
+  <div class="wrap split rev">
+    <div class="txt">
+      <span class="eyebrow rv">Your brand, every page</span>
+      <h2 id="h-brand" class="rv d1">Try your name on the cover.</h2>
+      <p class="lede rv d2">Reports carry your logo, colors, font, phone and license number. Type your company name and pick a color to see the cover.</p>
+      <form class="tryon rv d3" id="tryon" onsubmit="return false">
+        <label class="f" for="tn">Company name</label>
+        <input class="fin" id="tn" value="Summit Roofing Co." maxlength="32" autocomplete="organization">
+        <div class="f" id="swl">Brand color</div>
+        <div class="swatches" role="radiogroup" aria-labelledby="swl">
+          <label class="sw"><input type="radio" name="c" value="#16603A" checked><i style="background:#16603A"></i><span class="sr">Green</span></label>
+          <label class="sw"><input type="radio" name="c" value="#0B2545"><i style="background:#0B2545"></i><span class="sr">Navy</span></label>
+          <label class="sw"><input type="radio" name="c" value="#b3261e"><i style="background:#b3261e"></i><span class="sr">Red</span></label>
+          <label class="sw"><input type="radio" name="c" value="#c2570c"><i style="background:#c2570c"></i><span class="sr">Orange</span></label>
+          <label class="sw"><input type="radio" name="c" value="#5b3fa0"><i style="background:#5b3fa0"></i><span class="sr">Purple</span></label>
+          <label class="sw"><input type="radio" name="c" value="#222a26"><i style="background:#222a26"></i><span class="sr">Charcoal</span></label>
+        </div>
+        <p class="hint">In the builder you can also upload your logo and pick a font.</p>
+      </form>
+    </div>
+    <div class="media rv d1">
+      <div class="cover" id="cover" style="--brand:#16603A" aria-label="Preview of a report cover">
+        <div class="c-band"><span class="c-logo" id="cLogo">SR</span><b id="cName">Summit Roofing Co.</b></div>
+        <div class="c-photo" aria-hidden="true">
+          <svg viewBox="0 0 320 170"><rect width="320" height="170" fill="#cfe0d6"/><rect y="118" width="320" height="52" fill="#9bb9a7"/><path d="M40 118 L160 40 L280 118z" fill="#58605b"/><path d="M40 118 L160 40 L160 118z" fill="#4a524d"/><rect x="92" y="118" width="136" height="52" fill="#e9e4d8"/><rect x="146" y="136" width="28" height="34" fill="#7b6a58"/></svg>
+        </div>
+        <div class="c-body">
+          <p class="c-k">Roof inspection report</p>
+          <p class="c-a">123 Main St, Livingston, MT</p>
+          <p class="c-d">Inspected Nov 9, 2026</p>
+        </div>
+        <div class="c-foot"><span>Made with Roofly</span><i></i></div>
+      </div>
+      <p class="demo-note">Sample cover. Your own footage becomes the photo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SIZES -->
+<section class="sec tint" id="sizes" aria-labelledby="h-sizes">
+  <div class="wrap">
+    <div class="head c">
+      <span class="eyebrow rv">Pick the size</span>
+      <h2 id="h-sizes" class="rv d1">Quick for a glance. Thorough for a big roof.</h2>
+      <p class="lede rv d2">Roofly keeps the worst problems first and leaves them in walk-around order. The size changes how many stills and findings go in.</p>
+    </div>
+    <div class="tiers">
+      <article class="card tier rv"><h3>Quick</h3><p class="big">50 <small>stills</small></p><p>Up to 20 findings. Fastest and lightest.</p></article>
+      <article class="card tier pick rv d1"><span class="tag">Most reports</span><h3>Standard</h3><p class="big">100 <small>stills</small></p><p>Up to 50 findings. The default for most roofs.</p></article>
+      <article class="card tier rv d2"><h3>Thorough</h3><p class="big">200 <small>stills</small></p><p>Up to 100 findings. Takes longer, for large or complicated roofs.</p></article>
+    </div>
+    <div class="who rv" aria-label="Who uses it">
+      <span>Made for</span><b>Roofers</b><b>Property managers</b><b>Home inspectors</b><b>Insurance adjusters</b>
+    </div>
+  </div>
+</section>
+
+<!-- STORY -->
+<section class="sec" id="story" aria-labelledby="h-story">
+  <div class="wrap story">
+    <div class="rv"><div class="phone" style="width:min(300px,70vw)"><div class="scr"><img src="img/roofly-measure.webp" alt="A Roofly report with the roof measured" loading="lazy"></div></div></div>
+    <div>
+      <span class="eyebrow rv">Built on a real roof</span>
+      <h2 id="h-story" class="rv d1" style="margin-top:14px">Roofly started inside a roofing company.</h2>
+      <p class="story-p rv d2">Lucky Line Roofing in Livingston, Montana writes up every roof the same way: photos with the problems circled, a free repair plan the client can use with anyone, then the estimate. Roofly packages that method so any roofer, property manager or inspector can send the same quality of report under their own name.</p>
+      <p class="who-line rv d3"><b>Justin Walton</b>, founder. 25 years running construction projects, and a background helping drive about $1B in online sales.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="sec tint" id="faq" aria-labelledby="h-faq">
+  <div class="wrap">
+    <div class="head c"><span class="eyebrow rv">Questions</span><h2 id="h-faq" class="rv d1">Straight answers.</h2></div>
+    <div class="faq">
+      <details class="rv"><summary>What do I need to start?</summary><p>A phone video of the roof and the property address. A logo and brand color are optional but make the report yours. Start with one straight-on shot of the whole building, then walk the roof and pause a couple of seconds on each problem.</p></details>
+      <details class="rv"><summary>How long does a report take?</summary><p>About 5 minutes in our tests. You stay on the page for the first minute or two while your phone uploads the best stills. After that Roofly builds the report on its own, saves it to your account and emails you a link.</p></details>
+      <details class="rv"><summary>Does it cost anything?</summary><p>It is free to start. Create an account in the builder and make your first report today.</p></details>
+      <details class="rv"><summary>How accurate are the measurements?</summary><p>Roofly uses Google's roof data and high-resolution aerial imagery, then AI traces the edges. Every edge is labeled in feet so you can check it. Field-verify before you order materials, and use the exact street address so Roofly measures the right building.</p></details>
+      <details class="rv"><summary>Can I put my own logo and colors on it?</summary><p>Yes. Add your logo, brand color and font, plus your company details. Roofly saves them to your account so every new report carries them.</p></details>
+      <details class="rv"><summary>How do I send it to my client?</summary><p>Share the report as a link or download the PDF. Nothing goes to your client unless you send it.</p></details>
+      <details class="rv"><summary>I already have an account. Where do I log in?</summary><p>Tap <a href="/build/">Log in</a> at the top of the page. Your saved reports, logo and colors are waiting.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final" id="start" aria-labelledby="h-start">
+  <div class="wrap">
+    <div class="head c">
+      <h2 id="h-start" class="rv">Make your first report today.</h2>
+      <p class="lede rv d1">Upload a roof video and your logo. It is free, and no card is needed.</p>
+      <div class="ctas rv d2" style="justify-content:center">
+        <a class="btn p" href="/build/" data-cta="final">Build my report
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn g" href="/measure/" data-cta="final-measure">Measure a roof first</a>
+      </div>
+    </div>
+  </div>
+</section>
 </main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top" style="font-size:18px"><svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true"><path d="M14 54 L50 22 L86 54" fill="none" stroke="currentColor" stroke-width="11"/><rect x="30" y="68" width="40" height="11" fill="currentColor"/></svg>Roofly</a>
+    <nav aria-label="Footer"><a href="#how">How it works</a><a href="#report">Sample report</a><a href="#measure">Measuring</a><a href="#faq">FAQ</a><a href="/build/">Log in</a></nav>
+    <span>© 2026 Roofly · Livingston, Montana</span>
+  </div>
+</footer>
+
+<div class="mbar" id="mbar"><a class="btn g" href="/build/">Log in</a><a class="btn p" href="/build/" data-cta="sticky">Build my report</a></div>
+
+<script src="js/site.js?v=1" defer></script>
 </body>
 </html>
