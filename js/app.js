@@ -296,7 +296,7 @@ async function followJob(id) {
       step("build", "Opening your report");
       try { localStorage.removeItem(JOB_KEY); } catch {}
       state.dirty = false; state.model = null;
-      location.replace(new URL("p/?job=" + id, location.href).href);
+      location.replace(new URL("/p/?job=" + id, location.href).href);
       return;
       // eslint-disable-next-line no-unreachable
       const m = await fetch(s.report + "?t=" + Date.now()).then((r) => r.json());
@@ -332,7 +332,7 @@ async function resumeJob() {
   try {
     const s0 = await api("ri-job", { action: "status", id }, 1);
     if (s0.status === "error" || s0.status === "uploading" && !q) { try { localStorage.removeItem(JOB_KEY); } catch {} if (q) history.replaceState(null, "", location.pathname); return; }
-    if (s0.status === "done") { try { localStorage.removeItem(JOB_KEY); } catch {} location.replace(new URL("p/?job=" + id, location.href).href); return; }
+    if (s0.status === "done") { try { localStorage.removeItem(JOB_KEY); } catch {} location.replace(new URL("/p/?job=" + id, location.href).href); return; }
   } catch (e) { if (!q) { try { localStorage.removeItem(JOB_KEY); } catch {} return; } }
   showSteps();
   try { await followJob(id); }
@@ -419,7 +419,7 @@ $("shareBtn").addEventListener("click", async () => {
     const body = JSON.stringify(state.model);
     const put = await fetch(s.signedUrl, { method: "PUT", headers: { "Content-Type": "application/json", "x-upsert": "false" }, body });
     if (!put.ok) throw new Error("Couldn't save the report for sharing. Please try again.");
-    const link = new URL("p/?id=" + s.id, location.href).href;
+    const link = new URL("/p/?id=" + s.id, location.href).href;
     state.model.shareId = s.id; markDirty();
     crm.afterShare(link);
     out.hidden = false;
